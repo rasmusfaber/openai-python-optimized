@@ -1,4 +1,4 @@
-"""Compiled request transforms, written by Rasmus Faber for the optimized fork."""
+"""Compiled request transforms with upstream fallback."""
 
 from __future__ import annotations
 

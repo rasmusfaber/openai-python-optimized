@@ -1,4 +1,4 @@
-"""Cached annotation analysis, written by Rasmus Faber for the optimized fork."""
+"""Cached annotation analysis for request transforms."""
 
 from __future__ import annotations
 
@@ -69,10 +69,8 @@ def compile_plan(annotation: object) -> Plan:
 
 @lru_cache(maxsize=512)
 def _compile_cached(key: _AnnotationKey) -> Plan:
-    # Only complete graphs enter the shared cache. A private build graph also
-    # keeps concurrent and recursive construction from sharing partial plans.
-    # Identity keys retain their annotations: equal unions can have different
-    # arm orders, and a retained object cannot have its ID reused.
+    # Retained identities distinguish equal unions with different arm orders.
+    # Private build graphs keep incomplete plans out of the shared cache.
     return _build(key.annotation, key.annotation, {}, set())
 
 
@@ -114,9 +112,8 @@ def _build(
     try:
         plan = _analyze(annotation, inner_type, memo, active)
     except Exception:
-        # Eager analysis can reach unresolved forward references or unavailable
-        # optional dependencies that the stock walk never visits for this data.
-        # Execution errors are never caught or retried.
+        # Unvisited annotations may be unresolved or require optional dependencies.
+        # Defer errors to the stock walker when the data reaches them.
         plan = fallback
     finally:
         active.remove(key)

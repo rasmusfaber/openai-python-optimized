@@ -1,4 +1,4 @@
-"""Annotation identity caching, written by Rasmus Faber for the optimized fork."""
+"""Annotation identity caching."""
 
 from __future__ import annotations
 
@@ -14,8 +14,7 @@ _CallableT = TypeVar("_CallableT", bound=Callable[..., Any])
 
 @dataclass(frozen=True, eq=False)
 class _IdentityKey:
-    """Retain the annotation so its ID cannot be reused before cache eviction."""
-
+    # Retain the annotation to prevent ID reuse before eviction.
     value: object
 
     @override

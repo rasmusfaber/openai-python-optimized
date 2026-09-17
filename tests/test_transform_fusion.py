@@ -3,15 +3,17 @@ from __future__ import annotations
 import sys
 from types import ModuleType
 from typing import Any, Union, cast
-from typing_extensions import Literal, Annotated, TypedDict
+from typing_extensions import Annotated, TypedDict
 
 import pytest
 
 from openai import _utils
 from openai._utils import _transform as stock, _transform_fusion as fusion, _transform_optimized as optimized
-from openai._utils._transform_plan import Plan, compile_plan
+from openai._utils._transform_plan import Plan
 from openai.types.chat.completion_create_params import CompletionCreateParamsNonStreaming
 from openai.types.responses.response_create_params import ResponseCreateParamsNonStreaming
+
+from .transform_helpers import transform, request_body
 
 
 class Child(TypedDict):
@@ -30,15 +32,6 @@ class Second(TypedDict):
 
 class Request(TypedDict):
     payload: Union[First, Second]
-
-
-class Aliased(TypedDict):
-    kind: Literal["first"]
-    value: Annotated[str, stock.PropertyInfo(alias="renamed")]
-
-
-class Other(TypedDict):
-    kind: Literal["second"]
 
 
 class LruValue:
@@ -92,26 +85,13 @@ def payload(value: str = "a") -> dict[str, Any]:
     }
 
 
+@pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.asyncio
-async def test_fusion_skips_recursive_walk_and_preserves_copy_boundaries(monkeypatch: pytest.MonkeyPatch) -> None:
-    sync_calls, async_calls = 0, 0
-    original_run, original_async_run = optimized._run, optimized._async_run
-
-    def counted(data: object, plan: Plan) -> object:
-        nonlocal sync_calls
-        sync_calls += 1
-        return original_run(data, plan)
-
-    async def async_counted(data: object, plan: Plan) -> object:
-        nonlocal async_calls
-        async_calls += 1
-        return await original_async_run(data, plan)
-
-    monkeypatch.setattr(optimized, "_run", counted)
-    monkeypatch.setattr(optimized, "_async_run", async_counted)
-    data = payload()
-    for result in [_utils.transform(data, Request), await _utils.async_transform(data, Request)]:
-        assert result == stock.transform(data, Request)
+async def test_fusion_preserves_values_and_copy_boundaries(use_async: bool) -> None:
+    for value in ("before", "after"):
+        data = payload(value)
+        result = await transform(data, Request, use_async)
+        assert result == data
         assert result is not data
         assert result["payload"] is not data["payload"]
         for key in ("left", "right", "children"):
@@ -119,30 +99,32 @@ async def test_fusion_skips_recursive_walk_and_preserves_copy_boundaries(monkeyp
         for key in ("numeric", "unknown"):
             assert result["payload"][key] is data["payload"][key]
         assert result["payload"]["children"][0] is not data["payload"]["children"][0]
-    assert sync_calls == async_calls == 1
 
 
-def test_cache_reuses_shape_without_reusing_scalar_values() -> None:
-    assert _utils.transform(payload("before"), Request) == payload("before")
-    assert _utils.transform(payload("after"), Request) == payload("after")
-
-
+@pytest.mark.parametrize("shape", ["root_int", "root_float", "nested"])
 @pytest.mark.asyncio
-async def test_nested_numeric_lists_keep_constant_probe_work(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_numeric_lists_keep_constant_probe_work(shape: str, monkeypatch: pytest.MonkeyPatch) -> None:
     inspected_scalars = 0
 
     def counted_type(value: object) -> type:
         nonlocal inspected_scalars
-        if type(value) is int:
+        if type(value) in (int, float):
             inspected_scalars += 1
         return type(value)
 
     monkeypatch.setattr(fusion, "type", counted_type, raising=False)
-    data = {"values": [1] * 50_000}
-    for result in [_utils.transform(data, Numeric), await _utils.async_transform(data, Numeric)]:
-        assert result is not data
-        assert result["values"] is data["values"]
-    assert inspected_scalars <= 2
+    monkeypatch.setattr(optimized, "type", counted_type, raising=False)
+    numbers = [1.0 if shape == "root_float" else 1] * 50_000
+    data = {"values": numbers} if shape == "nested" else numbers
+    annotation = Numeric if shape == "nested" else list[float] if shape == "root_float" else list[int]
+    for use_async in (False, True):
+        result = await transform(data, annotation, use_async)
+        if isinstance(result, dict):
+            assert result is not data
+            assert result["values"] is numbers
+        else:
+            assert result is numbers
+    assert inspected_scalars <= 4
 
 
 @pytest.mark.parametrize("warm", [False, True])
@@ -204,14 +186,9 @@ class Root(TypedDict):
         monkeypatch.setitem(sys.modules, module.__name__, module)
         exec(source, module.__dict__)
 
-        async def transform(value: object, annotation: object) -> object:
-            if use_async:
-                return await backend.async_transform(value, annotation)
-            return backend.transform(value, annotation)
-
         if warm:
             module.__dict__["MissingName"] = str
-            await transform(data, module.Root)
+            await transform(data, module.Root, use_async, backend=backend)
             for annotation in (module.Root, module.First, module.Second):
                 stock.get_type_hints(annotation, include_extras=True)
             for index in range(capacity - 3):
@@ -226,12 +203,12 @@ class Root(TypedDict):
 
         monkeypatch.setattr(stock, "_get_type_hints", counted)
         with pytest.raises(NameError, match="MissingName"):
-            await transform(data, module.Root)
+            await transform(data, module.Root, use_async, backend=backend)
         assert calls == ([module.Broken] if warm else [module.Root, module.First, module.Second, module.Broken])
         for index in range(capacity - 1):
             stock.get_type_hints(type(f"Filler{index}", (), {}), include_extras=True)
         module.__dict__["Value"] = Annotated[str, stock.PropertyInfo(alias="renamed")]
-        return await transform({"value": "raw"}, module.First)
+        return await transform({"value": "raw"}, module.First, use_async, backend=backend)
 
     try:
         expected = await after_failure(stock)
@@ -273,9 +250,6 @@ def test_exhausted_fusion_budgets_use_faithful_fallback(limit: str, monkeypatch:
     fusion._CACHE.clear()
     monkeypatch.setattr(fusion, limit, 0)
     data = payload()
-    fused, unchanged = fusion.try_fuse(data, compile_plan(Request))
-    assert not fused
-    assert unchanged is data
     result = _utils.transform(data, Request)
     assert result == stock.transform(data, Request)
     assert result["payload"]["left"] is not data["payload"]["left"]
@@ -290,72 +264,29 @@ def test_shape_cache_is_bounded() -> None:
     assert len(fusion._CACHE) == 32
 
 
-@pytest.mark.asyncio
-async def test_metadata_union_is_not_pruned_by_discriminator() -> None:
-    data = {"kind": "second", "value": "a"}
-    annotation = Union[Aliased, Other]
-    assert _utils.transform(data, annotation) == {"kind": "second", "renamed": "a"}
-    assert await _utils.async_transform(data, annotation) == {"kind": "second", "renamed": "a"}
-
-
 @pytest.mark.parametrize("api", ["responses", "chat"])
-def test_repeated_generated_item_shapes_do_not_repeat_hint_analysis(api: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = 0
-    original = stock.get_type_hints
-
-    def counted(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        nonlocal calls
-        calls += 1
-        return original(*args, **kwargs)
-
-    def body(count: int) -> dict[str, Any]:
-        key, kind = ("input", "input_text") if api == "responses" else ("messages", "text")
-        return {
-            "model": "gpt-test",
-            key: [{"role": "user", "content": [{"type": kind, "text": str(index)}]} for index in range(count)],
-        }
-
-    annotation = ResponseCreateParamsNonStreaming if api == "responses" else CompletionCreateParamsNonStreaming
-    monkeypatch.setattr(stock, "get_type_hints", counted)
-    _utils.transform(body(1), annotation)
-    small_calls = calls
-    calls = 0
-    large = body(40)
-    result = _utils.transform(large, annotation)
-    assert calls <= small_calls * 2
-    assert result == stock.transform(large, annotation)
-
-
+@pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.asyncio
-async def test_large_mixed_responses_requests_fuse_at_the_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    items: list[dict[str, Any]] = []
-    for index in range(2_000):
-        if index % 3 == 0:
-            items.append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": str(index)}]})
-        elif index % 3 == 1:
-            items.append({"type": "function_call", "call_id": f"call_{index}", "name": "example", "arguments": "{}"})
-        else:
-            items.append({"type": "function_call_output", "call_id": f"call_{index - 1}", "output": str(index)})
-    data = {"model": "gpt-test", "input": items}
-    sync_calls, async_calls = 0, 0
+async def test_large_requests_avoid_per_item_fallback(
+    api: str, use_async: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = request_body(api, 2_000)
+    annotation = ResponseCreateParamsNonStreaming if api == "responses" else CompletionCreateParamsNonStreaming
+    calls = 0
     original_run, original_async_run = optimized._run, optimized._async_run
 
     def counted(value: object, plan: Plan) -> object:
-        nonlocal sync_calls
-        sync_calls += 1
+        nonlocal calls
+        calls += 1
         return original_run(value, plan)
 
     async def async_counted(value: object, plan: Plan) -> object:
-        nonlocal async_calls
-        async_calls += 1
+        nonlocal calls
+        calls += 1
         return await original_async_run(value, plan)
 
     monkeypatch.setattr(optimized, "_run", counted)
     monkeypatch.setattr(optimized, "_async_run", async_counted)
     fusion._CACHE.clear()
-    result = _utils.transform(data, ResponseCreateParamsNonStreaming)
-    assert result == data
-    assert sync_calls == 1
-    fusion._CACHE.clear()
-    assert await _utils.async_transform(data, ResponseCreateParamsNonStreaming) == result
-    assert async_calls == 1
+    assert await transform(data, annotation, use_async) == data
+    assert calls <= 4

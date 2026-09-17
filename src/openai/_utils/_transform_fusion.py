@@ -1,4 +1,4 @@
-"""Shape-directed copy fusion, written by Rasmus Faber for the optimized fork."""
+"""Combine compatible union transforms into one copy pass."""
 
 from __future__ import annotations
 
