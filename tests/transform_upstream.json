@@ -1,0 +1,12 @@
+{
+  "upstream_revision": "b77076d23b6f3e34453b0fadd8cd2a001627e365",
+  "sha256": {
+    "src/openai/_utils/_transform.py": "d115398b372ea9404c89c44b57db2bed7078dbec9e3878946038372971c5e5ed",
+    "src/openai/_utils/_typing.py": "37fe4f3ee14db1aca06ed03f9e965df7c4953752d042f15328be9b9163c16465",
+    "src/openai/_utils/_utils.py": "8323b652fd2dbb729bf260557911c38cc77ed87afafce64a10e83d4d58cbc718",
+    "src/openai/_utils/_compat.py": "b88b55c55b2d39e03d4885fc765ee70c2759abdf28d232c6ccc31574787dfc49",
+    "src/openai/_compat.py": "ca7b5bbec77a4dc3f586370b129aa1a336f5256e69656cbcd5c687884f2bbf9d",
+    "src/openai/_files.py": "1a4207d424e435f7a6c3bb9b8ac99d9ef7819c7b215d7b3f39ff2a6340334254",
+    "src/openai/_types.py": "6e5af131b5d6ec9e86e7238e7351beaa04295a508bc62e048a0dfa2720571a6d"
+  }
+}
