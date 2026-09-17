@@ -1,4 +1,5 @@
 # File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
+# Modified by Rasmus Faber: point optional-dependency instructions to the fork distribution.
 
 from __future__ import annotations
 
@@ -4461,7 +4462,7 @@ class AsyncResponsesConnectionManager:
         try:
             from ...lib._websocket import _WebSocketConnect as connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         url = self._prepare_url().copy_with(
             params={
@@ -4927,7 +4928,7 @@ class ResponsesConnectionManager:
         try:
             from websockets.sync.client import connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         url = self._prepare_url().copy_with(
             params={

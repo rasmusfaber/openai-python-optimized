@@ -1,15 +1,14 @@
 # File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
+# Modified by Rasmus Faber: retain standalone checks after retiring upstream automation.
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
 import os
-import shutil
 import struct
 import subprocess
 import tempfile
-import textwrap
 import unittest
 import unittest.mock as mock
 from pathlib import Path
@@ -272,119 +271,7 @@ class CustomCodeTests(unittest.TestCase):
             self.assertNotIn("No new custom-code files", body)
             self.assertIn("1 newly customized", body)
 
-    @unittest.skipUnless(shutil.which("node"), "GitHub Actions JavaScript runtime")
-    def test_trusted_failure_publisher_updates_one_current_comment(self) -> None:
-        workflow = (
-            Path(__file__).resolve().parents[2]
-            / ".github/workflows/castiron-custom-code-comment.yml"
-        )
-        section = workflow.read_text().split("- name: Publish a trusted failure status\n", 1)[1]
-        script = textwrap.dedent(section.split("script: |\n", 1)[1])
-        harness = r"""
-const assert = require('node:assert/strict');
-const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-async function check(stale, exists, priorRun, expected, missing = false) {
-  const writes = [];
-  const event = {id: 20, run_attempt: 1, event: 'pull_request', path: '.github/workflows/castiron-custom-code.yml', head_sha: 'a'.repeat(40), pull_requests: [{number: 1}]};
-  if (missing) Object.assign(event, {pull_requests: [], head_repository: {owner: {login: 'contributor'}}, head_branch: 'sdk'});
-  const current = {state: 'open', head: {sha: (stale ? 'c' : 'a').repeat(40)}};
-  const previous = {id: 42, user: {type: 'Bot', login: 'github-actions[bot]'},
-    body: `<!-- castiron:custom-code-report:v1 -->\n<!-- castiron:run:v1:${priorRun}:1 -->`};
-  const github = {paginate: async method => method === 'associations' ? []
-    : method === 'pulls' ? [{number: 1}] : exists ? [previous] : [], rest: {
-    repos: {listPullRequestsAssociatedWithCommit: 'associations'},
-    pulls: {get: async () => ({data: current}), list: 'pulls'},
-    issues: {listComments() {}, updateComment: async x => writes.push(['update', x]),
-      createComment: async x => writes.push(['create', x])}}};
-  const context = {payload: {workflow_run: event}, repo: {owner: 'openai', repo: 'example'},
-    runId: 20, serverUrl: 'https://github.com'};
-  await new AsyncFunction('github', 'context', SCRIPT)(github, context);
-  assert.equal(writes.length, expected ? 1 : 0);
-  if (expected) {
-    assert.equal(writes[0][0], expected);
-    assert.match(writes[0][1].body, /Report unavailable/);
-    assert.match(writes[0][1].body, /castiron:run:v1:20:1/);
-  }
-}
-(async () => {
-  await check(false, true, 10, 'update');
-  await check(false, false, 10, 'create');
-  await check(true, true, 10, null);
-  await check(false, true, 21, null);
-  await check(false, true, 10, 'update', true);
-  await check(true, true, 10, null, true);
-})().catch(error => { console.error(error); process.exitCode = 1; });
-"""
-        subprocess.run(
-            ["node", "-e", "const SCRIPT = " + json.dumps(script) + ";\n" + harness],
-            check=True,
-            env={**os.environ, "GITHUB_RUN_ATTEMPT": "1"},
-        )
-
-    def test_workflow_reports_all_branches_without_write_credentials(self) -> None:
-        workflows = Path(__file__).resolve().parents[2] / ".github/workflows"
-        producer = (workflows / "castiron-custom-code.yml").read_text()
-        publisher = (workflows / "castiron-custom-code-comment.yml").read_text()
-        self.assertIn("pull_request:", producer)
-        self.assertNotIn("CASTIRON_CUSTOM_CODE_BRANCHES", producer + publisher)
-        self.assertNotIn("pull-requests: write", producer)
-        self.assertNotIn("head.repo.full_name ==", producer)
-        self.assertIn("workflow_run:", publisher)
-        self.assertIn("ref: ${{ github.workflow_sha }}", publisher)
-        self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", publisher)
-        self.assertIn("persist-credentials: false", publisher)
-        self.assertIn("--report", publisher)
-        compute, comment = publisher.split("\n  comment:\n", 1)
-        self.assertNotIn("pull-requests: write", compute)
-        self.assertIn("pull-requests: read", compute)
-        self.assertIn(" trusted-report ", compute)
-        self.assertNotIn("download-artifact@", compute)
-        self.assertNotIn("unittest", compute)
-        self.assertIn("needs: compute", comment)
-        self.assertIn("artifact-ids: ${{ needs.compute.outputs.artifact-id }}", comment)
-        self.assertNotIn("run-id: ${{ github.event.workflow_run.id }}", comment)
-        self.assertNotIn("git fetch", comment)
-        self.assertIn("--artifact-run-id", comment)
-        digest = hashlib.sha256(
-            (workflows.parents[1] / "scripts/castiron/custom_code_report.py").read_bytes()
-        ).hexdigest()
-        self.assertIn(f"REPORTER_SHA256: {digest}", producer)
-
-    def test_comment_only_rerun_links_to_the_compute_artifact_attempt(self) -> None:
-        workflow = (
-            Path(__file__).resolve().parents[2]
-            / ".github/workflows/castiron-custom-code-comment.yml"
-        ).read_text()
-        compute, comment = workflow.split("\n  comment:\n", 1)
-
-        def field(section: str, prefix: str) -> str:
-            return next(
-                line.removeprefix(prefix)
-                for line in section.splitlines()
-                if line.startswith(prefix)
-            )
-
-        def resolve(value: str, context: dict[str, str]) -> str:
-            for key, replacement in context.items():
-                value = value.replace("${{ " + key + " }}", replacement)
-            self.assertNotIn("${{", value)
-            return value
-
-        # A successful compute job's outputs survive a comment-only rerun.
-        compute_context = {"github.run_id": "9", "github.run_attempt": "3"}
-        uploaded_name = resolve(field(compute, "          name: "), compute_context)
-        saved_attempt = resolve(field(compute, "      artifact-run-attempt: "), compute_context)
-        comment_context = {
-            "github.run_id": "9",
-            "github.run_attempt": "4",
-            "needs.compute.outputs.artifact-run-attempt": saved_attempt,
-        }
-        artifact_attempt = resolve(
-            field(comment, "          ARTIFACT_RUN_ATTEMPT: "), comment_context
-        )
-        self.assertEqual(uploaded_name, "castiron-custom-code-9-3")
-        self.assertEqual(artifact_attempt, "3")
-
+    def test_comment_links_to_the_compute_artifact_attempt(self) -> None:
         _, base = self.baseline()
         result, _ = report.build_report(self.repo, base, base)
         pull = {"state": "open", "head": {"sha": base}, "base": {"sha": base}}
@@ -406,12 +293,12 @@ async function check(stale, exists, priorRun, expected, missing = false) {
                     2,
                     1,
                     artifact_run_id=9,
-                    artifact_run_attempt=int(artifact_attempt),
+                    artifact_run_attempt=3,
                 ),
                 "published",
             )
         body = api.call_args.args[2]["body"]
-        self.assertIn(f"--name {uploaded_name}", body)
+        self.assertIn("--name castiron-custom-code-9-3", body)
         self.assertNotIn("--name castiron-custom-code-9-4", body)
         self.assertIn("castiron:run:v1:2:1", body)
 

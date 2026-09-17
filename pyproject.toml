@@ -1,7 +1,7 @@
 # Modified by Rasmus Faber: identify the optimized fork and its maintainer.
 [project]
-name = "openai"
-version = "3.14.1"
+name = "openai-python-optimized"
+version = "3.14.1.post1"
 description = "A fork of the OpenAI Python SDK with optimized request transforms"
 dynamic = ["readme"]
 license = "Apache-2.0"

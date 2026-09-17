@@ -122,6 +122,8 @@ For each upstream update:
 
 1. Merge the desired upstream revision, preserving the export change, optimizer
    modules, and normalization-cache fix (unless upstream has adopted it).
+   Keep the fork's `openai-python-optimized` distribution name and GitHub workflows;
+   update the fork version to the new upstream version plus `.postN`.
 2. Review changes to every fingerprinted file. Check traversal precedence,
    annotation/metadata handling, model dumping, sentinels, and file conversion.
    Review dependency changes that affect typing or Pydantic behavior as well.
@@ -136,8 +138,8 @@ For each upstream update:
 
 New schema types are resolved from their current annotations; there is no static
 API dispatch table to refresh. The manifest signals a required review, rather
-than proving compatibility by itself. Follow upstream's CODEOWNER and
-custom-code-budget requirements before integrating serialization changes.
+than proving compatibility by itself. Rasmus Faber reviews serialization changes
+for this fork; the upstream custom-code budget is not enforced here.
 
 ## License and attribution
 

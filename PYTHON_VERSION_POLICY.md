@@ -1,11 +1,12 @@
+<!-- Modified by Rasmus Faber: retain Python support while replacing automated policy reviews. -->
 # Python Version Support Policy
 
-The OpenAI Python SDK supports every fully released CPython version that has
+This fork of the OpenAI Python SDK supports every fully released CPython version that has
 not reached upstream end of life. The oldest supported version is declared by
 `requires-python` in [`pyproject.toml`](pyproject.toml), documented in the
 README, and tested on every pull request.
 
-The SDK team may retain the most recently retired CPython version for up to six
+The fork maintainer may retain the most recently retired CPython version for up to six
 months when the dependency graph, platform support, and security posture allow
 it. This grace period is discretionary, is not an LTS commitment, and may end
 early because of security, dependency, platform, or tooling requirements.
@@ -16,7 +17,7 @@ Minimum Python version increases:
 - ship in an SDK minor release, not a normal patch release;
 - are documented in the README and release notes;
 - identify the final SDK release installable on the retired Python version;
-- require approval from the SDK CODEOWNERS; and
+- require approval from the fork CODEOWNER; and
 - do not require a new SDK major version when documented APIs remain compatible
   on supported runtimes and `Requires-Python` prevents incompatible installs.
 
@@ -26,7 +27,7 @@ compatibility layer preserves the contract, the change requires a major
 release by default. Patch-level runtime removals are reserved for urgent
 security exceptions and require unusually prominent communication.
 
-The SDK team reviews this policy within 30 days of every October CPython
+The fork maintainer reviews this policy within 30 days of every October CPython
 release and scheduled end of life. It does not normally raise the Python floor
 more than once in a 12-month period. A scheduled upstream end of life may
 require an earlier increase when the maximum six-month grace period would
@@ -48,24 +49,19 @@ images are ready.
   `Requires-Python` value, and a resolver running on the retired interpreter
   must reject the new artifact.
 
-### Automated review
+### Maintainer review
 
-The monthly Codex review snapshots the official Python release-cycle data and
-public PyPI download distribution before the model runs. Codex compares that
-data with package metadata, classifiers, CI, documentation, and this policy.
-When a release, end of life, grace deadline, usage signal, or repository drift
-requires a maintainer decision, a separate credential-free job opens or
-refreshes one GitHub issue.
-
-The review never edits `Requires-Python`, pushes a branch, or merges a change.
-The normal SDK review and release process remains authoritative.
+The maintainer reviews CPython release and end-of-life dates when updating
+upstream. Weekly and manual compatibility jobs exercise each supported runtime;
+`scripts/check-python-version-policy.py` checks metadata, CI, and documentation
+for agreement. Changes to support policy use the normal review and release process.
 
 ### Current compatibility
 
 | SDK version | Python requirement |
 | --- | --- |
-| Next minor release (unreleased) | Python 3.10 or later |
-| v2.48.0 | Final release installable on Python 3.9 |
+| Fork 3.14.1.post1 | Python 3.10 or later |
+| Upstream v2.48.0 | Final release installable on Python 3.9 |
 
 The fully released upstream-supported matrix is currently Python 3.10 through
 3.14. Python 3.15 is covered as an allowed-failure prerelease. There is no

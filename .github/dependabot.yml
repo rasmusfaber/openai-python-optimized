@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber for fork dependency maintenance.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -41,8 +42,3 @@ updates:
     cooldown:
       default-days: 8
     open-pull-requests-limit: 5
-    groups:
-      # CodeQL init/analyze share versioned state and must change together.
-      codeql:
-        patterns:
-          - "github/codeql-action"

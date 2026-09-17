@@ -1,5 +1,6 @@
+# Modified by Rasmus Faber for the independently maintained SDK fork.
 name: Bug report
-description: Report an issue or bug with this library
+description: Report an issue with the optimized SDK fork
 labels: ['bug']
 body:
   - type: markdown
@@ -10,7 +11,7 @@ body:
     id: non_api
     attributes:
       label: Confirm this is an issue with the Python library and not an underlying OpenAI API
-      description: Issues with the underlying OpenAI API should be reported on our [Developer Community](https://community.openai.com/c/api/7)
+      description: Issues with the underlying OpenAI API should be reported on OpenAI's [Developer Community](https://community.openai.com/c/api/7)
       options:
         - label: This is an issue with the Python library
           required: true
@@ -59,6 +60,6 @@ body:
     id: lib-version
     attributes:
       label: Library version
-      placeholder: openai v1.0.1
+      placeholder: openai-python-optimized 3.14.1.post1
     validations:
       required: true

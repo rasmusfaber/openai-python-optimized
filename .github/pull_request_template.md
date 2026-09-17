@@ -1,10 +1,8 @@
-<!-- Thank you for contributing to this project! -->
-<!-- The code in this repository is all auto-generated, and is not meant to be edited manually. -->
-<!-- We recommend opening an Issue instead, but you are still welcome to open a PR to share for -->
-<!-- an improvement if you wish, just note that we are unlikely to merge it as-is. -->
+<!-- Modified by Rasmus Faber for contributions to this fork. -->
+## Changes
 
-- [ ] I understand that this repository is auto-generated and my pull request may not be merged
+<!-- Describe the problem and resulting behavior. -->
 
-## Changes being requested
+## Validation
 
-## Additional context & links
+<!-- Describe the checks run and any limitations. -->

@@ -1,3 +1,4 @@
+<!-- Modified by Rasmus Faber: document fork ownership, packaging, CI, and releases. -->
 ## Setting up the environment
 
 The minimum supported runtime, contributor toolchain, CI matrix, and release
@@ -55,7 +56,7 @@ hosts blindly or commit private registry URLs. The public-source regression test
 in `tests/test_uv_workflows.py` checks this without making network requests.
 
 Do not lower a security-fixed minimum or downgrade a patched lock entry to make
-the cooldown pass. If an urgent fix is too new for uv, request SDK CODEOWNER
+the cooldown pass. If an urgent fix is too new for uv, request fork CODEOWNER
 review of the advisory, exact fixed version, upstream provenance, artifact
 hashes, and affected dependency paths. The reviewed PR may add a temporary,
 package-specific `tool.uv.exclude-newer-package` cutoff using a fixed UTC
@@ -81,22 +82,10 @@ Most of the SDK is generated code. Modifications to code will be persisted betwe
 result in merge conflicts between manual patches and changes from the generator. The generator will never
 modify the contents of the `src/openai/lib/` and `examples/` directories.
 
-## Custom-code budget
-
-The custom-code budget counts additions plus deletions in the remaining patch
-against verified generated output. `.castiron-ratchet.json` defines this repository's
-ceiling. CI uses the checker and budget on main, not the PR's proposed versions.
-
-Budget changes must be in a separate PR modifying **only `.castiron-ratchet.json`**.
-Justify the current usage, proposed ceiling, and why fixing generation is not
-appropriate in the PR description. Increases require a **human approving review**
-and must merge before an SDK change relies on them. Agents may draft proposals,
-but must not approve increases or bypass the gate. Keep default CODEOWNERS.
-Lower the ceiling after cleanup while retaining headroom; decreases must still
-fit the measured usage.
-
-See [custom-code technical details](scripts/castiron/CUSTOM_CODE.md) for accounting,
-local checks, trusted CI, and activation instructions.
+The optimizer is handwritten and isolated from generated API resources. See
+[TRANSFORM_OPTIMIZATION.md](./TRANSFORM_OPTIMIZATION.md) for the upstream sync
+procedure and compatibility checks. The fork does not enforce the upstream
+Castiron custom-code budget.
 
 ## Security requirements for contributions
 
@@ -113,10 +102,10 @@ local checks, trusted CI, and activation instructions.
   `uv.lock`, and the build dependency group.
 - Pin third-party GitHub Actions to reviewed full commit SHAs, minimize job
   permissions, and keep secrets and write-capable tokens away from untrusted
-  pull-request code. Protect release-app credentials and preserve the separate
+  pull-request code. Preserve the separate
   build and upload jobs, protected publishing environment, and PyPI Trusted
   Publishing. Limit OIDC access to the trusted publishing job.
-- Request SDK CODEOWNER review for authentication, X.509, webhook verification,
+- Request fork CODEOWNER review for authentication, X.509, webhook verification,
   network destinations, redirects, TLS, cloud metadata, file handling,
   serialization, dependency, CI, and release changes. Add synchronous and
   asynchronous regression tests as applicable, including credential redaction
@@ -148,7 +137,7 @@ If you’d like to use the repository from source, you can either install from g
 To install via git:
 
 ```sh
-$ pip install git+ssh://git@github.com/openai/openai-python.git
+$ pip install git+ssh://git@github.com/rasmusfaber/openai-python-optimized.git
 ```
 
 Alternatively, you can build from source and install the wheel file:
@@ -222,13 +211,14 @@ $ ./scripts/format
 
 ## Publishing and releases
 
-Changes made to this repository via the automated release PR pipeline should publish to PyPI automatically. If
-the changes aren't made through the automated pipeline, you may want to make releases manually.
+The fork is distributed as `openai-python-optimized` and imported as `openai`.
+Fork versions append `.postN` to the upstream version, starting at `3.14.1.post1`.
+Keep `pyproject.toml`, `src/openai/_version.py`, and `uv.lock` synchronized.
 
-### Publish with a GitHub workflow
+Publishing a GitHub release tagged `v<version>` from a commit on `main` runs CI
+and uploads its validated wheel and source distribution through PyPI Trusted
+Publishing. Retry a failed publication by rerunning the workflow; use a new
+version for changed artifacts. The workflow uses OIDC rather than a stored PyPI token.
 
-You can release to package managers by using [the `Publish PyPI` GitHub action](https://www.github.com/openai/openai-python/actions/workflows/publish-pypi.yml). PyPI publishing uses Trusted Publishing, so the PyPI project must trust this repository's GitHub Actions workflow and the `publish` environment.
-
-### Publish manually
-
-If you need to retry a PyPI release, use the `Publish PyPI` GitHub action. Local manual publishing is not the standard release path because the GitHub workflow uses OIDC instead of a long-lived PyPI token.
+See [.github/README.md](./.github/README.md) for the one-time PyPI setup and release
+steps. Do not install the upstream `openai` distribution alongside the fork.

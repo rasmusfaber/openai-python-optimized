@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: point optional-dependency instructions to the fork distribution.
 from .._exceptions import OpenAIError
 
 INSTRUCTIONS = """
@@ -8,7 +9,7 @@ OpenAI error:
 
 This feature requires additional dependencies:
 
-    $ pip install openai[{extra}]
+    $ pip install openai-python-optimized[{extra}]
 
 """
 

@@ -36,11 +36,18 @@ uv venv
 uv pip install .
 ```
 
-The distribution and import names remain `openai`, so this replaces the upstream SDK
-in that environment. Existing application code can continue to use `from openai import OpenAI`.
-Installing `openai` from PyPI installs the upstream release; install from this checkout
-to use the optimizations. For optional extras, use `uv pip install '.[aiohttp]'` or
-`uv pip install '.[bedrock]'` as needed.
+The PyPI distribution name is `openai-python-optimized`; the import remains
+`openai`. Existing application code can continue to use `from openai import OpenAI`.
+Once the first PyPI release is published, install it with
+`uv pip install openai-python-optimized`, including optional extras such as
+`uv pip install 'openai-python-optimized[aiohttp]'` or
+`uv pip install 'openai-python-optimized[bedrock]'`.
+
+Use a separate environment or uninstall the upstream `openai` distribution before
+installing this fork: both packages write to the same `openai` import namespace.
+A dependency requiring the distribution `openai` will not automatically accept
+`openai-python-optimized` as a substitute. Installing `openai` from PyPI installs
+the upstream SDK.
 
 ## Usage
 

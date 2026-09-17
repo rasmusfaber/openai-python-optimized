@@ -1,8 +1,8 @@
 # Regression tests for the custom-code budget.
+# Modified by Rasmus Faber: retain standalone checks after retiring upstream automation.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -298,139 +298,6 @@ class BudgetTests(unittest.TestCase):
         self.assertIn(self.generated, summary)
         self.assertIn(self.base, summary)
         self.assertIn("human approving review", summary)
-
-
-@unittest.skipUnless(shutil.which("node"), "Node is needed to execute the status-publisher fixture")
-class StatusPublisherTests(unittest.TestCase):
-    def publish(
-        self,
-        *,
-        event_name: str = "pull_request",
-        head_changed: bool = False,
-        base_changed: bool = False,
-        no_result: bool = False,
-        failed_budget: bool = False,
-        fallback_pulls: list[dict[str, int]] | None = None,
-        run_overrides: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        path = (
-            Path(__file__).resolve().parents[2]
-            / ".github/workflows/castiron-custom-code-comment.yml"
-        )
-        section = path.read_text().split("\n  budget-status:\n", 1)[1].split("\n  comment:\n", 1)[0]
-        publisher = section.split("          script: |\n", 1)[1]
-        script = "\n".join(line[12:] for line in publisher.splitlines())
-        base, head = "a" * 40, "b" * 40
-        payload = {
-            "script": script,
-            "fallback_pulls": fallback_pulls,
-            "context": {
-                "eventName": "workflow_run",
-                "repo": {"owner": "openai", "repo": "example"},
-                "serverUrl": "https://github.com",
-                "runId": 123,
-                "payload": {
-                    "workflow_run": source_run(head, event_name),
-                },
-            },
-            "run": {**source_run(head, event_name), **(run_overrides or {})},
-            "current": {
-                "state": "open",
-                "head": {"sha": "c" * 40 if head_changed else head},
-                "base": {
-                    "sha": "c" * 40 if base_changed else base,
-                    "ref": "main",
-                    "repo": {"full_name": "openai/example"},
-                },
-            },
-            "env": {
-                "BASE_SHA": "" if no_result else base,
-                "HEAD_SHA": "" if no_result else head,
-                "ISOLATION_RESULT": "success",
-                "BUDGET_RESULT": "failure" if failed_budget else "success",
-            },
-        }
-        harness = """
-          const fs = require('node:fs');
-          const data = JSON.parse(fs.readFileSync(0, 'utf8'));
-          const published = [];
-          const github = {rest: {
-            pulls: {get: async () => ({data: data.current}), list: 'pulls.list'},
-            actions: {getWorkflowRun: async () => ({data: data.run})},
-            git: {getRef: async () => ({data: {object: {sha: data.current.base.sha}}})},
-            repos: {createCommitStatus: async value => published.push(value),
-              listPullRequestsAssociatedWithCommit: 'commits.pulls'},
-          }, paginate: async (method, params) => {
-            if (method === 'commits.pulls') return [];
-            if (method !== 'pulls.list' || params.head !== 'contributor:sdk' || params.state !== 'open')
-              throw new Error('Unexpected fallback lookup');
-            return data.fallback_pulls;
-          }};
-          const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-          new AsyncFunction('github','context','process', data.script)(github, data.context, {env:data.env})
-            .then(() => process.stdout.write(JSON.stringify(published)))
-            .catch(error => { console.error(error); process.exitCode = 1; });
-        """
-        output = subprocess.run(
-            ["node", "-e", harness],
-            input=json.dumps(payload),
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        return cast(list[dict[str, Any]], json.loads(output.stdout))
-
-    def test_statuses_attach_to_candidate_not_main(self) -> None:
-        for event in ("pull_request", "merge_group"):
-            with self.subTest(event=event):
-                results = self.publish(event_name=event)
-                self.assertEqual(len(results), 2)
-                self.assertTrue(
-                    all(r["sha"] == "b" * 40 and r["state"] == "success" for r in results)
-                )
-
-    def test_fork_statuses_with_no_commit_association(self) -> None:
-        options: dict[str, Any] = {"run_overrides": {"pull_requests": []}, "fallback_pulls": [{"number": 3}]}
-        results = self.publish(**options)
-        self.assertEqual(len(results), 2)
-        self.assertTrue(all(r["sha"] == "b" * 40 and r["state"] == "success" for r in results))
-        self.assertEqual(self.publish(**options, head_changed=True), [])
-        self.assertTrue(
-            all(r["state"] == "failure" for r in self.publish(**options, no_result=True))
-        )
-        self.assertEqual(self.publish(run_overrides={"pull_requests": []}, fallback_pulls=[]), [])
-        self.assertEqual(
-            self.publish(
-                run_overrides={"pull_requests": []}, fallback_pulls=[{"number": 3}, {"number": 4}]
-            ),
-            [],
-        )
-
-    def test_stale_pr_head_is_not_published(self) -> None:
-        self.assertEqual(self.publish(head_changed=True), [])
-
-    def test_stale_base_and_missing_evaluation_cannot_publish_success(self) -> None:
-        for event in ("pull_request", "merge_group"):
-            for base_changed, no_result in ((True, False), (False, True)):
-                results = self.publish(
-                    event_name=event, base_changed=base_changed, no_result=no_result
-                )
-                self.assertEqual(len(results), 2)
-                self.assertTrue(all(r["state"] == "failure" for r in results))
-
-    def test_superseded_or_wrong_source_run_cannot_publish(self) -> None:
-        for overrides in (
-            {"run_attempt": 2},
-            {"head_sha": "c" * 40},
-            {"event": "push"},
-            {"path": "other.yml"},
-        ):
-            with self.subTest(overrides=overrides):
-                self.assertEqual(self.publish(run_overrides=overrides), [])
-
-    def test_independent_check_failures_are_preserved(self) -> None:
-        results = self.publish(failed_budget=True)
-        self.assertEqual([r["state"] for r in results], ["success", "failure"])
 
 
 class GitHubBudgetTests(unittest.TestCase):

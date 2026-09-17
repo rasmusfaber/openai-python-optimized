@@ -1,4 +1,5 @@
 # pyright: reportMissingTypeStubs=false
+# Modified by Rasmus Faber: point optional-dependency instructions to the fork distribution.
 
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ def _load_botocore() -> tuple[Any, Any, Any, Any]:
     except ImportError as exc:
         raise OpenAIError(
             "Bedrock AWS authentication requires optional AWS dependencies. "
-            "Install them with `pip install openai[bedrock]` and try again."
+            "Install them with `pip install openai-python-optimized[bedrock]` and try again."
         ) from exc
 
     return cast("tuple[Any, Any, Any, Any]", (SigV4Auth, AWSRequest, Credentials, Session))

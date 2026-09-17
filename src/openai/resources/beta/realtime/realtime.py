@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: point optional-dependency instructions to the fork distribution.
 from __future__ import annotations
 
 import json
@@ -354,7 +355,7 @@ class AsyncRealtimeConnectionManager:
         try:
             from ....lib._websocket import _WebSocketConnect as connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         extra_query = self.__extra_query
         await self.__client._refresh_api_key()
@@ -539,7 +540,7 @@ class RealtimeConnectionManager:
         try:
             from websockets.sync.client import connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         extra_query = self.__extra_query
         self.__client._refresh_api_key()

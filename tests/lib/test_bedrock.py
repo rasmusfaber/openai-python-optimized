@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: validate fork dependency installation instructions.
 from __future__ import annotations
 
 import json
@@ -157,7 +158,7 @@ def test_empty_env_bearer_without_botocore_uses_aws_credentials(monkeypatch: pyt
     def load_botocore() -> None:
         raise OpenAIError(
             "Bedrock AWS authentication requires optional AWS dependencies. "
-            "Install them with `pip install openai[bedrock]` and try again."
+            "Install them with `pip install openai-python-optimized[bedrock]` and try again."
         )
 
     monkeypatch.setattr(bedrock_auth_module, "_load_botocore", load_botocore)

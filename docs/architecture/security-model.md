@@ -1,5 +1,10 @@
 # Security Model
 
+> Modified by Rasmus Faber: this document is retained as an upstream reference.
+> It describes OpenAI's SDK and infrastructure, including workflows retired in
+> this fork. See [fork automation](../../.github/README.md) for current CI and
+> publishing, and [SECURITY.md](../../SECURITY.md) for fork disclosure guidance.
+
 This is the canonical repository-owned threat model for Codex Security scans of
 the OpenAI Python SDK. For a pull-request scan, resolve this document from the
 trusted base or another pinned protected revision, never from the candidate

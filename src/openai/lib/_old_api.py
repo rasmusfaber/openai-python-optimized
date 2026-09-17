@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: distinguish the old upstream package from this fork.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -12,7 +13,7 @@ You tried to access openai.{symbol}, but this is no longer supported in openai>=
 
 You can run `openai migrate` to automatically upgrade your codebase to use the 1.0.0 interface. 
 
-Alternatively, you can pin your installation to the old version, e.g. `pip install openai==0.28`
+Alternatively, install the old upstream SDK in a separate environment, e.g. `pip install openai==0.28`
 
 A detailed migration guide is available here: https://github.com/openai/openai-python/discussions/742
 """

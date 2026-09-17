@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: check the fork's installed distribution metadata.
 from __future__ import annotations
 
 from importlib.metadata import requires
@@ -14,7 +15,7 @@ from packaging.requirements import Requirement
     ],
 )
 def test_optional_network_dependency_security_floors(name: str, extra: str, affected: str, patched: str) -> None:
-    requirements = [Requirement(value) for value in requires("openai") or []]
+    requirements = [Requirement(value) for value in requires("openai-python-optimized") or []]
     matches = [requirement for requirement in requirements if requirement.name == name]
     assert len(matches) == 1
     requirement = matches[0]

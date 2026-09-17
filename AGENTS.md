@@ -1,3 +1,4 @@
+<!-- Modified by Rasmus Faber: replace inherited organizational automation with fork workflows. -->
 # Repository Guidance
 
 ## Generated SDK
@@ -7,15 +8,11 @@ changing generated files. Handwritten policy, automation, tests, and examples
 should remain small and should not alter exported SDK APIs unless the change
 explicitly requires it.
 
-## Custom-code budget
+## Fork ownership
 
-Follow [the custom-code guidance](scripts/castiron/CUSTOM_CODE.md). Budget changes
-belong in a separate PR containing only `.castiron-ratchet.json`, with an explicit justification
-in the PR description. Increases require a **human approving review** before merging.
-Agents may investigate and draft proposals, but must not approve budget increases
-(including through a human's credentials) or bypass the gate. Do not weaken
-counting, broaden exclusions, or alter generation metadata to make a change pass.
-The checker and effective budget come from main, not the PR. Keep default CODEOWNERS.
+Rasmus Faber maintains this fork. Keep optimizer changes isolated and preserve
+upstream attribution. Inherited Castiron tools and provenance records remain
+available for reference; this fork does not enforce the upstream custom-code budget.
 
 ## Security requirements for coding agents
 
@@ -38,7 +35,7 @@ The checker and effective budget come from main, not the PR. Keep default CODEOW
 - Preserve separate build and publish jobs, protected release credentials, and
   PyPI Trusted Publishing. Grant `id-token: write` only to the trusted,
   upload-only publishing job; do not introduce long-lived PyPI tokens.
-- Obtain SDK CODEOWNER review and add focused synchronous and asynchronous
+- Obtain fork CODEOWNER review and add focused synchronous and asynchronous
   security regression tests, as applicable, for changes to authentication,
   X.509 or webhook verification, HTTP destinations, redirects, proxies, TLS,
   cloud metadata, file uploads, serialization, dependencies, GitHub Actions,
@@ -68,7 +65,7 @@ The checker and effective budget come from main, not the PR. Keep default CODEOW
 5. Add a `## Release note` section to the pull request description naming the
    new minimum and final compatible SDK release. Do not promise security
    backports for the old release.
-6. Obtain SDK CODEOWNER approval.
+6. Obtain fork CODEOWNER approval.
 
 The deterministic Python policy check proves repository surfaces agree. It
 does not decide whether an EOL grace period or floor increase is appropriate.
@@ -78,17 +75,13 @@ does not decide whether an EOL grace period or floor increase is appropriate.
 - `.github/workflows/ci.yml`
   - On pull requests and branch pushes: lint, build, metadata validation, and
     tests on the minimum and current stable Python releases.
-  - Nightly and manually: smoke-tests every supported Python release and the
-    allowed-failure prerelease.
-- `.github/workflows/python-version-review.yml`
-  - Monthly on the default branch: snapshots official CPython lifecycle data
-    plus the public PyPI Python-minor distribution and asks Codex for a policy
-    review.
-  - Runs a pinned Codex runtime as an unprivileged user with no command network
-    access and read-only repository permissions.
-  - Codex cannot edit the repository or call GitHub. A separate job with no
-    OpenAI credential opens or refreshes one issue only when action is needed.
-  - Never changes the Python floor or merges code automatically.
+  - Weekly and manually: transform tests on every supported Python release and
+    the allowed-failure prerelease, with both Pydantic versions.
+- `.github/workflows/publish-pypi.yml`
+  - Published releases from main rerun CI and publish its checked distributions
+    to `openai-python-optimized` through the `pypi` environment using OIDC.
+  - Only the upload job has publishing permission. See `.github/README.md`.
+- `.github/dependabot.yml`: weekly Python, Node, and GitHub Actions updates.
 
 ## Validation
 
