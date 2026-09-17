@@ -13,9 +13,9 @@ from typing_extensions import (
     get_origin,
 )
 
-from ._utils import lru_cache
 from .._types import InheritsGeneric
 from ._compat import is_union as _is_union
+from ._identity_cache import identity_cache
 
 
 def is_annotated_type(typ: type) -> bool:
@@ -72,7 +72,8 @@ def is_type_alias_type(tp: Any, /) -> TypeIs[typing_extensions.TypeAliasType]:
 
 
 # Extracts T from Annotated[T, ...] or from Required[Annotated[T, ...]]
-@lru_cache(maxsize=8096)
+# Modified by Rasmus Faber: retain annotation identity to preserve union order.
+@identity_cache(maxsize=8096)
 def strip_annotated_type(typ: type) -> type:
     if is_required_type(typ) or is_annotated_type(typ):
         return strip_annotated_type(cast(type, get_args(typ)[0]))

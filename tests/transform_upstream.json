@@ -8,5 +8,11 @@
     "src/openai/_compat.py": "ca7b5bbec77a4dc3f586370b129aa1a336f5256e69656cbcd5c687884f2bbf9d",
     "src/openai/_files.py": "1a4207d424e435f7a6c3bb9b8ac99d9ef7819c7b215d7b3f39ff2a6340334254",
     "src/openai/_types.py": "6e5af131b5d6ec9e86e7238e7351beaa04295a508bc62e048a0dfa2720571a6d"
+  },
+  "fork_patches": {
+    "src/openai/_utils/_typing.py": {
+      "sha256": "25be34d40617d4e91c8138e07d7bce363fc82c681c611151ca6de84f1add37e5",
+      "reason": "Use a bounded identity cache for strip_annotated_type so equal unions retain their own traversal order."
+    }
   }
 }

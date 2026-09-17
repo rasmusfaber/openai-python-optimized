@@ -14,12 +14,31 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 STOCK_MODULE = "openai._utils._transform"
-FALLBACK_MODULES = {"openai._utils._transform_plan", "openai._utils._transform_optimized"}
+FALLBACK_MODULES = {
+    "openai._utils._transform_plan",
+    "openai._utils._transform_optimized",
+    "openai._utils._transform_fusion",
+}
+
+
+class ForkPatch(TypedDict):
+    sha256: str
+    reason: str
 
 
 class Audit(TypedDict):
     upstream_revision: str
     sha256: dict[str, str]
+    fork_patches: dict[str, ForkPatch]
+
+
+def _reviewed_fingerprints(audit: Audit) -> dict[str, str]:
+    fingerprints = audit["sha256"].copy()
+    for name, patch in audit["fork_patches"].items():
+        assert name in fingerprints, f"Missing upstream baseline for fork patch: {name}"
+        assert patch["reason"] and patch["sha256"] != fingerprints[name]
+        fingerprints[name] = patch["sha256"]
+    return fingerprints
 
 
 def _changed_files(root: Path, fingerprints: dict[str, str]) -> list[str]:
@@ -52,7 +71,7 @@ def test_audited_upstream_files_are_unchanged() -> None:
     audit = cast(Audit, json.loads(Path(__file__).with_name("transform_upstream.json").read_text()))
     assert len(audit["upstream_revision"]) == 40
     assert audit["sha256"]
-    changed = _changed_files(ROOT, audit["sha256"])
+    changed = _changed_files(ROOT, _reviewed_fingerprints(audit))
     assert not changed, (
         f"Upstream transform dependencies changed: {changed}. Review their semantics and run the differential "
         "suite before intentionally updating tests/transform_upstream.json; see TRANSFORM_OPTIMIZATION.md."
@@ -68,11 +87,14 @@ def test_sdk_imports_use_optimized_exports() -> None:
     assert not violations, f"SDK imports bypass the optimized transform exports: {violations}"
 
 
-def test_fingerprint_detects_changed_and_missing_source(tmp_path: Path) -> None:
-    original = (ROOT / "src/openai/_utils/_transform.py").read_bytes()
-    copy = tmp_path / "_transform.py"
+@pytest.mark.parametrize("name", ["_transform.py", "_typing.py"])
+def test_fingerprint_detects_changed_and_missing_source(tmp_path: Path, name: str) -> None:
+    source = f"src/openai/_utils/{name}"
+    audit = cast(Audit, json.loads(Path(__file__).with_name("transform_upstream.json").read_text()))
+    original = (ROOT / source).read_bytes()
+    copy = tmp_path / name
     copy.write_bytes(original)
-    fingerprints = {copy.name: hashlib.sha256(original).hexdigest()}
+    fingerprints = {copy.name: _reviewed_fingerprints(audit)[source]}
     assert _changed_files(tmp_path, fingerprints) == []
     copy.write_bytes(original + b"\n# Synthetic upstream change.\n")
     assert _changed_files(tmp_path, fingerprints) == [copy.name]
@@ -101,6 +123,7 @@ def test_import_check_detects_bypasses(source: str) -> None:
         ("from .._utils._transform import PropertyInfo", "openai.resources.example"),
         ("from . import _transform as stock", "openai._utils._transform_plan"),
         ("from . import _transform as stock", "openai._utils._transform_optimized"),
+        ("from . import _transform as stock", "openai._utils._transform_fusion"),
     ],
 )
 def test_import_check_allows_exports_metadata_and_fallback(source: str, module: str) -> None:
