@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: expect packaged documentation links to the fork.
 from __future__ import annotations
 
 import runpy
@@ -15,10 +16,13 @@ _render_readme = cast(
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("[Guide](CONTRIBUTING.md)", "[Guide](https://github.com/openai/openai-python/tree/main/CONTRIBUTING.md)"),
+        (
+            "[Guide](CONTRIBUTING.md)",
+            "[Guide](https://github.com/rasmusfaber/openai-python-optimized/tree/main/CONTRIBUTING.md)",
+        ),
         (
             "[Example](examples/demo.py#usage)",
-            "[Example](https://github.com/openai/openai-python/tree/main/examples/demo.py#usage)",
+            "[Example](https://github.com/rasmusfaber/openai-python-optimized/tree/main/examples/demo.py#usage)",
         ),
         ("[Docs](https://example.com/docs)", "[Docs](https://example.com/docs)"),
         ("[Docs](http://example.com/docs)", "[Docs](http://example.com/docs)"),

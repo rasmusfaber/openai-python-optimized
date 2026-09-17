@@ -1,13 +1,27 @@
-# OpenAI Python API library
+# openai-python-optimized
 
-<!-- prettier-ignore -->
-[![PyPI version](https://img.shields.io/pypi/v/openai.svg?label=pypi%20(stable))](https://pypi.org/project/openai/)
+An independently maintained fork of the [OpenAI Python SDK](https://github.com/openai/openai-python)
+by Rasmus Faber, focused on reducing CPU time spent transforming request parameters.
+It keeps the SDK's public API and uses upstream fallback for inputs the optimizer cannot safely handle.
+
+Compiled transform plans combine repeated traversal and copying into fewer passes.
+The fork also fixes an upstream annotation-cache bug that could change union processing
+order based on earlier requests. The optimization modules are separate from generated
+API code, with one transform export change and a small normalization-cache fix to maintain
+when syncing with upstream.
+
+In synthetic benchmarks with 200 input items, warm request transforms were **56–63× faster
+for Responses** and **about 20× faster for Chat Completions** than unmodified SDK 3.14.1.
+These measurements cover local transformation work and exclude network and server latency.
+Workloads using fallback throughout were 13–14% slower because of the cache fix.
+See [the optimization notes](TRANSFORM_OPTIMIZATION.md) for benchmark conditions,
+compatibility details, and the upstream update procedure.
 
 The OpenAI Python library provides convenient access to the OpenAI REST API from any Python 3.10+
 application. The library includes type definitions for all request params and response fields,
 and offers both synchronous and asynchronous clients powered by [HTTPX2](https://httpx2.pydantic.dev/).
 
-It is generated from our [OpenAPI specification](https://github.com/openai/openai-openapi).
+The SDK is generated from OpenAI's [OpenAPI specification](https://github.com/openai/openai-openapi).
 
 ## Documentation
 
@@ -15,10 +29,18 @@ The REST API documentation can be found on [platform.openai.com](https://platfor
 
 ## Installation
 
+From a local checkout of this fork:
+
 ```sh
-# install from PyPI
-pip install openai
+uv venv
+uv pip install .
 ```
+
+The distribution and import names remain `openai`, so this replaces the upstream SDK
+in that environment. Existing application code can continue to use `from openai import OpenAI`.
+Installing `openai` from PyPI installs the upstream release; install from this checkout
+to use the optimizations. For optional extras, use `uv pip install '.[aiohttp]'` or
+`uv pip install '.[bedrock]'` as needed.
 
 ## Usage
 
@@ -305,11 +327,10 @@ Functionality between the synchronous and asynchronous clients is otherwise iden
 
 By default, the async client uses HTTPX2. For improved concurrency performance, you may also use `aiohttp` as the HTTPX2 transport.
 
-You can enable this by installing `aiohttp`:
+You can enable this by installing the fork's `aiohttp` extra from this checkout:
 
 ```sh
-# install from PyPI
-pip install openai[aiohttp]
+uv pip install '.[aiohttp]'
 ```
 
 Then you can enable it by instantiating the client with `http_client=DefaultAioHttpClient()`:
@@ -1144,10 +1165,10 @@ An example of using the client with Microsoft Entra ID (formerly known as Azure 
 
 To use this library with [Amazon Bedrock's OpenAI-compatible API](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html), configure the standard `OpenAI` client with the Bedrock provider.
 
-Install the optional Bedrock dependencies to use the standard AWS credential chain and SigV4 authentication:
+Install the optional Bedrock dependencies from this checkout to use the standard AWS credential chain and SigV4 authentication:
 
 ```sh
-pip install 'openai[bedrock]'
+uv pip install '.[bedrock]'
 ```
 
 ```py
@@ -1228,7 +1249,9 @@ Minimum supported Python version increases are released as minor versions, not p
 
 We take backwards-compatibility seriously and work hard to ensure you can rely on a smooth upgrade experience.
 
-We are keen for your feedback; please open an [issue](https://www.github.com/openai/openai-python/issues) with questions, bugs, or suggestions.
+Before reporting a bug to [upstream](https://github.com/openai/openai-python/issues),
+check whether it also occurs with the upstream release. Changes specific to this fork
+are maintained in [rasmusfaber/openai-python-optimized](https://github.com/rasmusfaber/openai-python-optimized).
 
 ### Determining the installed version
 
@@ -1248,3 +1271,12 @@ Python 3.10 or higher.
 ## Contributing
 
 See [the contributing documentation](./CONTRIBUTING.md).
+
+## License and attribution
+
+The original SDK is copyright OpenAI and distributed under the [Apache License 2.0](LICENSE).
+Rasmus Faber's fork modifications are distributed under the same license. This README
+has been adapted from upstream's documentation for the fork.
+
+The bundled [httpx-aiohttp](src/openai/_vendor/httpx_aiohttp/LICENSE) code and
+[RESPX test utilities](tests/respx2/LICENSE.md) retain their own copyright and BSD license notices.

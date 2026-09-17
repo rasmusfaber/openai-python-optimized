@@ -56,7 +56,7 @@ from openai._utils._transform import transform, async_transform
 
 The unchanged upstream transform tests run through the optimized exports.
 Additional tests compare values, types, identity/sharing, observable consumption,
-exceptions, concurrent calls, and actual synchronous/asynchronous SDK requests
+exceptions, and actual synchronous/asynchronous SDK requests
 using mock HTTP. Benchmark inputs and regression fixtures are synthetic.
 
 ## Measuring performance

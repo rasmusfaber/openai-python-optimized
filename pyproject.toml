@@ -1,12 +1,14 @@
+# Modified by Rasmus Faber: identify the optimized fork and its maintainer.
 [project]
 name = "openai"
 version = "3.14.1"
-description = "The official Python library for the openai API"
+description = "A fork of the OpenAI Python SDK with optimized request transforms"
 dynamic = ["readme"]
 license = "Apache-2.0"
 authors = [
 { name = "OpenAI", email = "support@openai.com" },
 ]
+maintainers = [{ name = "Rasmus Faber" }]
 
 dependencies = [
   "httpx2>=2.7.0, <3",
@@ -36,8 +38,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/openai/openai-python"
-Repository = "https://github.com/openai/openai-python"
+Homepage = "https://github.com/rasmusfaber/openai-python-optimized"
+Repository = "https://github.com/rasmusfaber/openai-python-optimized"
+Upstream = "https://github.com/openai/openai-python"
 
 [project.optional-dependencies]
 aiohttp = [

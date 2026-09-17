@@ -1,5 +1,7 @@
 """Prepare the package README without importing the SDK or extra build plugins."""
 
+# Modified by Rasmus Faber: resolve packaged documentation links to the fork.
+
 from __future__ import annotations
 
 import re
@@ -8,11 +10,11 @@ from pathlib import Path
 
 
 def render_readme(text: str) -> str:
-    # Preserve the relative-link rewrite previously configured in pyproject.toml.
     return re.sub(
         r"\[(.+?)\]\(((?!https?://)\S+?)\)",
-        r"[\1](https://github.com/openai/openai-python/tree/main/\g<2>)",
+        r"[\1](https://github.com/rasmusfaber/openai-python-optimized/tree/main/\g<2>)",
         text,
+        flags=re.DOTALL,
     )
 
 
