@@ -8,6 +8,7 @@ from typing_extensions import get_args
 from . import _transform as stock
 from ._utils import is_given
 from ._transform_plan import Plan, compile_plan, get_field_plans
+from ._transform_fusion import try_fuse
 
 _T = TypeVar("_T")
 _NONE_TYPE = type(None)
@@ -40,13 +41,15 @@ def _run(data: object, plan: Plan) -> object:
     ):
         return stock._transform_recursive(data, annotation=plan.annotation, inner_type=plan.inner_type)
 
-    # Preserve stock's normalization-cache history, including equal union
-    # annotations with different arm orders.
     if stock.strip_annotated_type(plan.inner_type) is not plan.stripped_type:
         return stock._transform_recursive(data, annotation=plan.annotation, inner_type=plan.inner_type)
 
     if data_type is list and plan.numeric:
         return data
+
+    fused, fused_result = try_fuse(data, plan)
+    if fused:
+        return fused_result
 
     if data_type is dict:
         mapping = cast(dict[str, object], data)
@@ -99,6 +102,10 @@ async def _async_run(data: object, plan: Plan) -> object:
 
     if data_type is list and plan.numeric:
         return data
+
+    fused, fused_result = try_fuse(data, plan)
+    if fused:
+        return fused_result
 
     if data_type is dict:
         mapping = cast(dict[str, object], data)
