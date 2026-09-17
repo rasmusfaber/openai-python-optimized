@@ -28,7 +28,8 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: '0.12.5'
-          python-version: '3.14'
+          # Match the Python target used by the repository's static checks.
+          python-version: '3.10'
           enable-cache: true
       - uses: ./.github/actions/setup-node-tooling
       - run: uv sync --locked --all-extras
