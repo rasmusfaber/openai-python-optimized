@@ -13,13 +13,17 @@ import sniffio
 from ... import _legacy_response
 from ...types import FileChunkingStrategyParam
 from ..._types import Body, Omit, Query, Headers, NotGiven, FileTypes, SequenceNotStr, omit, not_given
-from ..._utils import is_given, path_template, maybe_transform, async_maybe_transform
+from ..._utils import path_template, maybe_transform, async_maybe_transform
 from ..._compat import cached_property
 from ..._resource import SyncAPIResource, AsyncAPIResource
 from ..._response import to_streamed_response_wrapper, async_to_streamed_response_wrapper
 from ...pagination import SyncCursorPage, AsyncCursorPage
 from ..._base_client import AsyncPaginator, make_request_options
 from ...types.file_object import FileObject
+from ...lib._vector_stores import (
+    poll_vector_store_file_batch as _poll_vector_store_file_batch,
+    async_poll_vector_store_file_batch as _async_poll_vector_store_file_batch,
+)
 from ...types.vector_stores import file_batch_create_params, file_batch_list_files_params
 from ...types.file_chunking_strategy_param import FileChunkingStrategyParam
 from ...types.vector_stores.vector_store_file import VectorStoreFile
@@ -76,12 +80,12 @@ class FileBatches(SyncAPIResource):
           chunking_strategy: The chunking strategy used to chunk the file(s). If not set, will use the `auto`
               strategy. Only applicable if `file_ids` is non-empty.
 
-          file_ids: A list of [File](https://platform.openai.com/docs/api-reference/files) IDs that
-              the vector store should use. Useful for tools like `file_search` that can access
-              files. If `attributes` or `chunking_strategy` are provided, they will be applied
-              to all files in the batch. The maximum batch size is 2000 files. This endpoint
-              is recommended for multi-file ingestion and helps reduce per-vector-store write
-              request pressure. Mutually exclusive with `files`.
+          file_ids: A list of [File](https://developers.openai.com/api/reference/resources/files)
+              IDs that the vector store should use. Useful for tools like `file_search` that
+              can access files. If `attributes` or `chunking_strategy` are provided, they will
+              be applied to all files in the batch. The maximum batch size is 2000 files. This
+              endpoint is recommended for multi-file ingestion and helps reduce
+              per-vector-store write request pressure. Mutually exclusive with `files`.
 
           files: A list of objects that each include a `file_id` plus optional `attributes` or
               `chunking_strategy`. Use this when you need to override metadata for specific
@@ -340,30 +344,12 @@ class FileBatches(SyncAPIResource):
         Note: this will return even if one of the files failed to process, you need to
         check batch.file_counts.failed_count to handle this case.
         """
-        headers: dict[str, str] = {"X-Stainless-Poll-Helper": "true"}
-        if is_given(poll_interval_ms):
-            headers["X-Stainless-Custom-Poll-Interval"] = str(poll_interval_ms)
-
-        while True:
-            response = self.with_raw_response.retrieve(
-                batch_id,
-                vector_store_id=vector_store_id,
-                extra_headers=headers,
-            )
-
-            batch = response.parse()
-            if batch.file_counts.in_progress > 0:
-                if not is_given(poll_interval_ms):
-                    from_header = response.headers.get("openai-poll-after-ms")
-                    if from_header is not None:
-                        poll_interval_ms = int(from_header)
-                    else:
-                        poll_interval_ms = 1000
-
-                self._sleep(poll_interval_ms / 1000)
-                continue
-
-            return batch
+        return _poll_vector_store_file_batch(
+            self,
+            batch_id,
+            vector_store_id=vector_store_id,
+            poll_interval_ms=poll_interval_ms,
+        )
 
     def upload_and_poll(
         self,
@@ -464,12 +450,12 @@ class AsyncFileBatches(AsyncAPIResource):
           chunking_strategy: The chunking strategy used to chunk the file(s). If not set, will use the `auto`
               strategy. Only applicable if `file_ids` is non-empty.
 
-          file_ids: A list of [File](https://platform.openai.com/docs/api-reference/files) IDs that
-              the vector store should use. Useful for tools like `file_search` that can access
-              files. If `attributes` or `chunking_strategy` are provided, they will be applied
-              to all files in the batch. The maximum batch size is 2000 files. This endpoint
-              is recommended for multi-file ingestion and helps reduce per-vector-store write
-              request pressure. Mutually exclusive with `files`.
+          file_ids: A list of [File](https://developers.openai.com/api/reference/resources/files)
+              IDs that the vector store should use. Useful for tools like `file_search` that
+              can access files. If `attributes` or `chunking_strategy` are provided, they will
+              be applied to all files in the batch. The maximum batch size is 2000 files. This
+              endpoint is recommended for multi-file ingestion and helps reduce
+              per-vector-store write request pressure. Mutually exclusive with `files`.
 
           files: A list of objects that each include a `file_id` plus optional `attributes` or
               `chunking_strategy`. Use this when you need to override metadata for specific
@@ -728,30 +714,12 @@ class AsyncFileBatches(AsyncAPIResource):
         Note: this will return even if one of the files failed to process, you need to
         check batch.file_counts.failed_count to handle this case.
         """
-        headers: dict[str, str] = {"X-Stainless-Poll-Helper": "true"}
-        if is_given(poll_interval_ms):
-            headers["X-Stainless-Custom-Poll-Interval"] = str(poll_interval_ms)
-
-        while True:
-            response = await self.with_raw_response.retrieve(
-                batch_id,
-                vector_store_id=vector_store_id,
-                extra_headers=headers,
-            )
-
-            batch = response.parse()
-            if batch.file_counts.in_progress > 0:
-                if not is_given(poll_interval_ms):
-                    from_header = response.headers.get("openai-poll-after-ms")
-                    if from_header is not None:
-                        poll_interval_ms = int(from_header)
-                    else:
-                        poll_interval_ms = 1000
-
-                await self._sleep(poll_interval_ms / 1000)
-                continue
-
-            return batch
+        return await _async_poll_vector_store_file_batch(
+            self,
+            batch_id,
+            vector_store_id=vector_store_id,
+            poll_interval_ms=poll_interval_ms,
+        )
 
     async def upload_and_poll(
         self,

@@ -53,15 +53,17 @@ from ._typing import (
     extract_type_var_from_base as extract_type_var_from_base,
 )
 from ._streams import consume_sync_iterator as consume_sync_iterator, consume_async_iterator as consume_async_iterator
-from ._transform import (
-    PropertyInfo as PropertyInfo,
-    transform as transform,
-    async_transform as async_transform,
-    maybe_transform as maybe_transform,
-    async_maybe_transform as async_maybe_transform,
-)
+from ._transform import PropertyInfo as PropertyInfo
 from ._reflection import (
     function_has_argument as function_has_argument,
     assert_signatures_in_sync as assert_signatures_in_sync,
 )
 from ._datetime_parse import parse_date as parse_date, parse_datetime as parse_datetime
+
+# Modified by Rasmus Faber: package exports use the compiled transform runtime.
+from ._transform_optimized import (
+    transform as transform,
+    async_transform as async_transform,
+    maybe_transform as maybe_transform,
+    async_maybe_transform as async_maybe_transform,
+)

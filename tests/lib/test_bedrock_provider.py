@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: validate fork dependency installation instructions.
 from __future__ import annotations
 
 import builtins
@@ -296,7 +297,7 @@ def test_missing_aws_dependency_is_actionable_and_lazy(monkeypatch: pytest.Monke
         http_client=httpx2.Client(transport=httpx2.MockTransport(handler), trust_env=False),
     )
 
-    with pytest.raises(OpenAIError, match=r"pip install openai\[bedrock\]"):
+    with pytest.raises(OpenAIError, match=r"pip install openai-python-optimized\[bedrock\]"):
         client.get("/models", cast_to=httpx2.Response)
 
     assert network_calls == 0

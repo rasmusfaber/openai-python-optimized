@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Union, Mapping, Optional, cast
-from typing_extensions import Literal, overload, assert_never
+from typing import List, Union, Mapping, Optional, cast
+from typing_extensions import Literal, overload
 
 import httpx2
 
@@ -29,6 +29,7 @@ from ..._streaming import Stream, AsyncStream
 from ...types.audio import transcription_create_params
 from ..._base_client import make_request_options
 from ...types.audio_model import AudioModel
+from ...lib._parsing._audio import get_transcription_response_format_type as _get_transcription_response_format_type
 from ...types.audio.transcription import Transcription
 from ...types.audio_response_format import AudioResponseFormat
 from ...types.audio.transcription_include import TranscriptionInclude
@@ -127,8 +128,9 @@ class Transcriptions(SyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
-              should match the audio language.
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
+              should match the audio language. This field is not supported when using
+              `gpt-4o-transcribe-diarize`.
 
           response_format: The format of the output, in one of these options: `json`, `text`, `srt`,
               `verbose_json`, or `vtt`. For `gpt-4o-transcribe` and `gpt-4o-mini-transcribe`,
@@ -138,7 +140,7 @@ class Transcriptions(SyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -275,7 +277,7 @@ class Transcriptions(SyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -317,7 +319,7 @@ class Transcriptions(SyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
               should match the audio language. This field is not supported when using
               `gpt-4o-transcribe-diarize`.
 
@@ -396,7 +398,7 @@ class Transcriptions(SyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -438,7 +440,7 @@ class Transcriptions(SyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
               should match the audio language. This field is not supported when using
               `gpt-4o-transcribe-diarize`.
 
@@ -643,7 +645,7 @@ class AsyncTranscriptions(AsyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
               should match the audio language. This field is not supported when using
               `gpt-4o-transcribe-diarize`.
 
@@ -657,7 +659,7 @@ class AsyncTranscriptions(AsyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -772,7 +774,7 @@ class AsyncTranscriptions(AsyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -814,7 +816,7 @@ class AsyncTranscriptions(AsyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
               should match the audio language. This field is not supported when using
               `gpt-4o-transcribe-diarize`.
 
@@ -893,7 +895,7 @@ class AsyncTranscriptions(AsyncAPIResource):
               generated using
               [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#Event_stream_format).
               See the
-              [Streaming section of the Speech-to-Text guide](https://platform.openai.com/docs/guides/speech-to-text?lang=curl#streaming-transcriptions)
+              [Streaming section of the Speech-to-Text guide](https://developers.openai.com/api/docs/guides/speech-to-text?lang=curl#streaming)
               for more information.
 
               Note: Streaming is not supported for the `whisper-1` model and will be ignored.
@@ -935,7 +937,7 @@ class AsyncTranscriptions(AsyncAPIResource):
 
           prompt: An optional text to guide the model's style or continue a previous audio
               segment. The
-              [prompt](https://platform.openai.com/docs/guides/speech-to-text#prompting)
+              [prompt](https://developers.openai.com/api/docs/guides/speech-to-text#prompting)
               should match the audio language. This field is not supported when using
               `gpt-4o-transcribe-diarize`.
 
@@ -1078,19 +1080,4 @@ class AsyncTranscriptionsWithStreamingResponse:
 def _get_response_format_type(
     response_format: AudioResponseFormat | Omit,
 ) -> type[Transcription | TranscriptionVerbose | TranscriptionDiarized | str]:
-    if isinstance(response_format, Omit) or response_format is None:  # pyright: ignore[reportUnnecessaryComparison]
-        return Transcription
-
-    if response_format == "json":
-        return Transcription
-    elif response_format == "verbose_json":
-        return TranscriptionVerbose
-    elif response_format == "diarized_json":
-        return TranscriptionDiarized
-    elif response_format == "srt" or response_format == "text" or response_format == "vtt":
-        return str
-    elif TYPE_CHECKING:  # type: ignore[unreachable]
-        assert_never(response_format)
-    else:
-        log.warn("Unexpected audio response format: %s", response_format)
-        return Transcription
+    return _get_transcription_response_format_type(response_format, log=log)

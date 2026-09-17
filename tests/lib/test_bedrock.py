@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: validate fork dependency installation instructions.
 from __future__ import annotations
 
 import json
@@ -157,7 +158,7 @@ def test_empty_env_bearer_without_botocore_uses_aws_credentials(monkeypatch: pyt
     def load_botocore() -> None:
         raise OpenAIError(
             "Bedrock AWS authentication requires optional AWS dependencies. "
-            "Install them with `pip install openai[bedrock]` and try again."
+            "Install them with `pip install openai-python-optimized[bedrock]` and try again."
         )
 
     monkeypatch.setattr(bedrock_auth_module, "_load_botocore", load_botocore)
@@ -711,6 +712,56 @@ def test_blank_base_url_restores_region_derived_url_provenance(client_cls: type[
         copied_client = client.with_options(base_url="").with_options(aws_region="eu-west-1")
 
     assert copied_client.base_url == URL("https://bedrock-mantle.eu-west-1.api.aws/openai/v1/")
+
+
+@pytest.mark.parametrize("client_cls", [BedrockOpenAI, AsyncBedrockOpenAI])
+@pytest.mark.parametrize("base_url", ["", "   "], ids=["empty", "whitespace"])
+def test_blank_base_url_preserves_environment_derived_region(client_cls: type[Client], base_url: str) -> None:
+    with update_env(AWS_BEDROCK_BASE_URL=Omit(), AWS_REGION="us-west-2", AWS_DEFAULT_REGION=Omit()):
+        client = (
+            make_sync_client(base_url="https://custom.example/openai/v1", api_key="token")
+            if client_cls is BedrockOpenAI
+            else make_async_client(base_url="https://custom.example/openai/v1", api_key="token")
+        )
+
+    with update_env(AWS_BEDROCK_BASE_URL=Omit(), AWS_REGION=Omit(), AWS_DEFAULT_REGION=Omit()):
+        copied_client = client.with_options(base_url=base_url)
+
+    assert copied_client.aws_region == "us-west-2"
+    assert copied_client.base_url == URL("https://bedrock-mantle.us-west-2.api.aws/openai/v1/")
+    assert copied_client._bedrock_state.uses_region_derived_base_url
+    assert not copied_client._bedrock_state.region_was_explicit
+
+
+@pytest.mark.parametrize("client_cls", [BedrockOpenAI, AsyncBedrockOpenAI])
+@pytest.mark.parametrize("base_url", ["", "   "], ids=["empty", "whitespace"])
+def test_blank_base_url_preserves_profile_derived_region_after_bearer_override(
+    client_cls: type[Client], base_url: str, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "config"
+    config_path.write_text("[profile west]\nregion = us-west-2\n")
+
+    with update_env(
+        AWS_CONFIG_FILE=str(config_path),
+        AWS_PROFILE=Omit(),
+        AWS_BEARER_TOKEN_BEDROCK=Omit(),
+        AWS_BEDROCK_BASE_URL=Omit(),
+        AWS_REGION=Omit(),
+        AWS_DEFAULT_REGION=Omit(),
+    ):
+        client = (
+            make_sync_client(base_url="https://custom.example/openai/v1", aws_profile="west")
+            if client_cls is BedrockOpenAI
+            else make_async_client(base_url="https://custom.example/openai/v1", aws_profile="west")
+        )
+        copied_client = client.with_options(api_key="bearer token", base_url=base_url)
+
+    assert copied_client.aws_region == "us-west-2"
+    assert copied_client.base_url == URL("https://bedrock-mantle.us-west-2.api.aws/openai/v1/")
+    assert copied_client._bedrock_state.aws_profile is None
+    assert copied_client._bedrock_state.uses_region_derived_base_url
+    assert not copied_client._bedrock_state.region_was_explicit
+    assert not copied_client._uses_aws_auth()
 
 
 @pytest.mark.parametrize("client_cls", [BedrockOpenAI, AsyncBedrockOpenAI])

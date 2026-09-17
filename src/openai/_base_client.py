@@ -34,7 +34,6 @@ from typing import (
 from typing_extensions import Unpack, Literal, override, get_origin
 
 import anyio
-import distro
 import httpx2
 import pydantic
 from httpx2 import URL
@@ -63,9 +62,10 @@ from ._types import (
     not_given,
 )
 from ._utils import SensitiveHeadersFilter, is_dict, is_list, asyncify, is_given, lru_cache, is_mapping
-from ._compat import PYDANTIC_V1, model_copy, model_dump
+from ._compat import PYDANTIC_V1, model_copy
 from ._httpx2 import (
     status_exceptions,
+    request_exceptions,
     timeout_exceptions,
     http_response_types,
     normalize_httpx_url,
@@ -105,6 +105,7 @@ from ._exceptions import (
     APIResponseValidationError,
 )
 from ._utils._json import openapi_dumps
+from ._utils._logs import get_http_method_for_logging
 from ._legacy_response import LegacyAPIResponse
 
 log: logging.Logger = logging.getLogger(__name__)
@@ -411,10 +412,7 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
         self._idempotency_header = None
         self._platform: Platform | None = None
 
-        if max_retries is None:  # pyright: ignore[reportUnnecessaryComparison]
-            raise TypeError(
-                "max_retries cannot be None. If you want to disable retries, pass `0`; if you want unlimited retries, pass `math.inf` or a very high number; if you want the default behavior, pass `openai.DEFAULT_MAX_RETRIES`"
-            )
+        self._validate_max_retries(max_retries)
 
     def _enforce_trailing_slash(self, url: URL) -> URL:
         if url.raw_path.endswith(b"/"):
@@ -520,20 +518,12 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
         *,
         retries_taken: int = 0,
     ) -> httpx2.Request:
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug(
-                "Request options: %s",
-                model_dump(
-                    options,
-                    exclude_unset=True,
-                    # Pydantic v1 can't dump every type we support in content, so we exclude it for now.
-                    exclude={
-                        "content",
-                    }
-                    if PYDANTIC_V1
-                    else {},
-                ),
-            )
+        # Request bodies, files, URLs, and custom options can contain private data.
+        log.debug(
+            "Building HTTP request: method=%s retries_taken=%i",
+            get_http_method_for_logging(options.method),
+            retries_taken,
+        )
         kwargs: dict[str, Any] = {}
 
         json_data = options.json_data
@@ -584,9 +574,6 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
         if params and prepared_url.query:
             params = {**dict(prepared_url.params.items()), **params}
             prepared_url = prepared_url.copy_with(raw_path=prepared_url.raw_path.split(b"?", 1)[0])
-        if "_" in prepared_url.host:
-            # work around https://github.com/encode/httpx/discussions/2880
-            kwargs["extensions"] = {"sni_hostname": prepared_url.host.replace("_", "-")}
 
         is_body_allowed = options.method.lower() != "get"
 
@@ -770,24 +757,24 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
         if response_headers is None:
             return None
 
-        # First, try the non-standard `retry-after-ms` header for milliseconds,
-        # which is more precise than integer-seconds `retry-after`
-        try:
-            retry_ms_header = response_headers.get("retry-after-ms", None)
-            return float(retry_ms_header) / 1000
-        except (TypeError, ValueError):
-            pass
-
-        # Next, try parsing `retry-after` header as seconds (allowing nonstandard floats).
-        retry_header = response_headers.get("retry-after")
-        try:
-            # note: the spec indicates that this should only ever be an integer
-            # but if someone sends a float there's no reason for us to not respect it
-            return float(retry_header)
-        except (TypeError, ValueError):
-            pass
+        # Prefer milliseconds, then seconds (allowing nonstandard floats).
+        for header, divisor in (("retry-after-ms", 1000), ("retry-after", 1)):
+            value = response_headers.get(header)
+            if value is None:
+                continue
+            try:
+                delay = float(value)
+            except ValueError:
+                continue
+            if delay == math.inf and value.strip().lower() not in ("inf", "+inf", "infinity", "+infinity"):
+                # Numeric overflow is an excessive server delay, not a malformed
+                # infinity literal. Keep a finite sentinel so retry eligibility
+                # refuses it instead of falling back to a shorter wait.
+                return MAX_RETRY_AFTER_DELAY + 1
+            return delay / divisor
 
         # Last, try parsing `retry-after` as a date.
+        retry_header = response_headers.get("retry-after")
         try:
             retry_date_tuple = email.utils.parsedate_tz(retry_header)
             if retry_date_tuple is None:
@@ -798,6 +785,17 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
             return None
 
         return float(retry_date - time.time())
+
+    @staticmethod
+    def _validate_max_retries(value: object) -> None:
+        if value is None:
+            raise TypeError(
+                "max_retries cannot be None. Use 0 to disable retries or a large integer for a larger retry budget."
+            )
+        if not isinstance(value, int):
+            raise TypeError("max_retries must be a non-negative integer")
+        if value < 0:
+            raise ValueError("max_retries must be a non-negative integer")
 
     def _calculate_retry_timeout(
         self,
@@ -818,7 +816,7 @@ class BaseClient(Generic[_HttpxClientT, _DefaultStreamT]):
         # Apply exponential backoff, but not more than the max.
         sleep_seconds = min(INITIAL_RETRY_DELAY * pow(2.0, nb_retries), MAX_RETRY_DELAY)
 
-        # Apply some jitter, plus-or-minus half a second.
+        # Reduce the calculated timeout by a random range between 0-25%
         jitter = 1 - 0.25 * random()
         timeout = sleep_seconds * jitter
         return timeout if timeout >= 0 else 0
@@ -1058,6 +1056,7 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
 
         response: httpx2.Response | None = None
         max_retries = input_options.get_max_retries(self.max_retries)
+        self._validate_max_retries(max_retries)
 
         retries_taken = 0
         for retries_taken in range(max_retries + 1):
@@ -1080,7 +1079,7 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
             if options.follow_redirects is not None:
                 kwargs["follow_redirects"] = options.follow_redirects
 
-            log.debug("Sending HTTP Request: %s %s", request.method, request.url)
+            log.debug("Sending HTTP Request: %s", get_http_method_for_logging(request.method))
 
             response = None
             try:
@@ -1090,7 +1089,7 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
                     **kwargs,
                 )
             except timeout_exceptions() as err:
-                log.debug("Encountered a timeout exception", exc_info=True)
+                log.debug("Encountered a timeout exception: %s", type(err).__name__)
 
                 if remaining_retries > 0:
                     self._sleep_for_retry(
@@ -1106,8 +1105,8 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
             except OpenAIError as err:
                 # Propagate OpenAIErrors as-is, without retrying or wrapping in APIConnectionError
                 raise err
-            except Exception as err:
-                log.debug("Encountered Exception", exc_info=True)
+            except request_exceptions() as err:
+                log.debug("Encountered exception: %s", type(err).__name__)
 
                 if remaining_retries > 0:
                     self._sleep_for_retry(
@@ -1122,19 +1121,16 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
                 raise APIConnectionError(request=request) from err
 
             log.debug(
-                'HTTP Response: %s %s "%i %s" %s',
-                request.method,
-                request.url,
+                "HTTP Response: %s %i",
+                get_http_method_for_logging(request.method),
                 response.status_code,
-                response.reason_phrase,
-                response.headers,
             )
             log.debug("request_id: %s", response.headers.get("x-request-id"))
 
             try:
                 response.raise_for_status()
             except status_exceptions() as err:  # thrown on 4xx and 5xx status code
-                log.debug("Encountered an HTTP status error", exc_info=True)
+                log.debug("Encountered an HTTP status error: %i", response.status_code)
 
                 if remaining_retries > 0 and self._should_retry(err.response):
                     err.response.close()
@@ -1176,7 +1172,7 @@ class SyncAPIClient(BaseClient[httpx2.Client, Stream[Any]]):
             log.debug("%i retries left", remaining_retries)
 
         timeout = self._calculate_retry_timeout(remaining_retries, options, response.headers if response else None)
-        log.info("Retrying request to %s in %f seconds", options.url, timeout)
+        log.info("Retrying request in %f seconds (retry %i of %s)", timeout, retries_taken + 1, max_retries)
 
         time.sleep(timeout)
 
@@ -1685,6 +1681,7 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
 
         response: httpx2.Response | None = None
         max_retries = input_options.get_max_retries(self.max_retries)
+        self._validate_max_retries(max_retries)
 
         retries_taken = 0
         for retries_taken in range(max_retries + 1):
@@ -1706,7 +1703,7 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
             if options.follow_redirects is not None:
                 kwargs["follow_redirects"] = options.follow_redirects
 
-            log.debug("Sending HTTP Request: %s %s", request.method, request.url)
+            log.debug("Sending HTTP Request: %s", get_http_method_for_logging(request.method))
 
             response = None
             try:
@@ -1716,7 +1713,7 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
                     **kwargs,
                 )
             except timeout_exceptions() as err:
-                log.debug("Encountered a timeout exception", exc_info=True)
+                log.debug("Encountered a timeout exception: %s", type(err).__name__)
 
                 if remaining_retries > 0:
                     await self._sleep_for_retry(
@@ -1732,8 +1729,8 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
             except OpenAIError as err:
                 # Propagate OpenAIErrors as-is, without retrying or wrapping in APIConnectionError
                 raise err
-            except Exception as err:
-                log.debug("Encountered Exception", exc_info=True)
+            except request_exceptions() as err:
+                log.debug("Encountered exception: %s", type(err).__name__)
 
                 if remaining_retries > 0:
                     await self._sleep_for_retry(
@@ -1748,19 +1745,16 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
                 raise APIConnectionError(request=request) from err
 
             log.debug(
-                'HTTP Response: %s %s "%i %s" %s',
-                request.method,
-                request.url,
+                "HTTP Response: %s %i",
+                get_http_method_for_logging(request.method),
                 response.status_code,
-                response.reason_phrase,
-                response.headers,
             )
             log.debug("request_id: %s", response.headers.get("x-request-id"))
 
             try:
                 response.raise_for_status()
             except status_exceptions() as err:  # thrown on 4xx and 5xx status code
-                log.debug("Encountered an HTTP status error", exc_info=True)
+                log.debug("Encountered an HTTP status error: %i", response.status_code)
 
                 if remaining_retries > 0 and self._should_retry(err.response):
                     await err.response.aclose()
@@ -1802,7 +1796,7 @@ class AsyncAPIClient(BaseClient[httpx2.AsyncClient, AsyncStream[Any]]):
             log.debug("%i retries left", remaining_retries)
 
         timeout = self._calculate_retry_timeout(remaining_retries, options, response.headers if response else None)
-        log.info("Retrying request to %s in %f seconds", options.url, timeout)
+        log.info("Retrying request in %f seconds (retry %i of %s)", timeout, retries_taken + 1, max_retries)
 
         await anyio.sleep(timeout)
 
@@ -2186,9 +2180,18 @@ def get_platform() -> Platform:
         # system is Linux and platform_name is a string like 'Linux-5.10.81-android12-9-00001-geba40aecb3b7-ab8534902-aarch64-with-libc'
         return "Android"
 
+    if system == "freebsd":
+        return "FreeBSD"
+
+    if system == "openbsd":
+        return "OpenBSD"
+
     if system == "linux":
-        # https://distro.readthedocs.io/en/latest/#distro.id
-        distro_id = distro.id()
+        try:
+            distro_id = platform.freedesktop_os_release().get("ID", "").lower()
+        except OSError:
+            # This diagnostic header does not require an os-release file.
+            distro_id = ""
         if distro_id == "freebsd":
             return "FreeBSD"
 

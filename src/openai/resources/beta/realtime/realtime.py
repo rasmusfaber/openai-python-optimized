@@ -1,3 +1,4 @@
+# Modified by Rasmus Faber: point optional-dependency instructions to the fork distribution.
 from __future__ import annotations
 
 import json
@@ -277,7 +278,7 @@ class AsyncRealtimeConnection:
         then you can call `.parse_event(data)`.
         """
         message = await self._connection.recv(decode=False)
-        log.debug(f"Received websocket message: %s", message)
+        log.debug("Received WebSocket message: %i bytes", len(message))
         return message
 
     async def send(self, event: RealtimeClientEvent | RealtimeClientEventParam) -> None:
@@ -352,14 +353,16 @@ class AsyncRealtimeConnectionManager:
         ```
         """
         try:
-            from websockets.asyncio.client import connect
+            from ....lib._websocket import _WebSocketConnect as connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         extra_query = self.__extra_query
         await self.__client._refresh_api_key()
         auth_headers = self.__client.auth_headers
         if is_async_azure_client(self.__client):
+            from ....lib._azure_websocket import _AzureWebSocketConnect as connect
+
             url, auth_headers = await self.__client._configure_realtime(self.__model, extra_query)
         else:
             url = self._prepare_url().copy_with(
@@ -369,9 +372,9 @@ class AsyncRealtimeConnectionManager:
                     **extra_query,
                 },
             )
-        log.debug("Connecting to %s", url)
+        log.debug("Connecting to WebSocket API")
         if self.__websocket_connection_options:
-            log.debug("Connection options: %s", self.__websocket_connection_options)
+            log.debug("Custom WebSocket connection options provided")
 
         self.__connection = AsyncRealtimeConnection(
             await connect(
@@ -460,7 +463,7 @@ class RealtimeConnection:
         then you can call `.parse_event(data)`.
         """
         message = self._connection.recv(decode=False)
-        log.debug(f"Received websocket message: %s", message)
+        log.debug("Received WebSocket message: %i bytes", len(message))
         return message
 
     def send(self, event: RealtimeClientEvent | RealtimeClientEventParam) -> None:
@@ -537,7 +540,7 @@ class RealtimeConnectionManager:
         try:
             from websockets.sync.client import connect
         except ImportError as exc:
-            raise OpenAIError("You need to install `openai[realtime]` to use this method") from exc
+            raise OpenAIError("You need to install `openai-python-optimized[realtime]` to use this method") from exc
 
         extra_query = self.__extra_query
         self.__client._refresh_api_key()
@@ -552,9 +555,9 @@ class RealtimeConnectionManager:
                     **extra_query,
                 },
             )
-        log.debug("Connecting to %s", url)
+        log.debug("Connecting to WebSocket API")
         if self.__websocket_connection_options:
-            log.debug("Connection options: %s", self.__websocket_connection_options)
+            log.debug("Custom WebSocket connection options provided")
 
         self.__connection = RealtimeConnection(
             connect(

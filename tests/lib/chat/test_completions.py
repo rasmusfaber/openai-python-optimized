@@ -71,6 +71,7 @@ recommend checking a reliable weather website or app like the Weather Channel or
     ],
     created=1727346142,
     id='chatcmpl-ABfvaueLEMLNYbT8YzpJxsmiQ6HSY',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -82,7 +83,8 @@ recommend checking a reliable weather website or app like the Weather Channel or
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=14,
         prompt_tokens_details=None,
@@ -141,6 +143,7 @@ ParsedChatCompletion(
     ],
     created=1727346143,
     id='chatcmpl-ABfvbtVnTu5DeC4EFnRYj8mtfOM99',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -152,7 +155,8 @@ ParsedChatCompletion(
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=79,
         prompt_tokens_details=None,
@@ -213,6 +217,7 @@ ParsedChatCompletion(
     ],
     created=1727346144,
     id='chatcmpl-ABfvcC8grKYsRkSoMp9CCAhbXAd0b',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -224,7 +229,8 @@ ParsedChatCompletion(
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=88,
         prompt_tokens_details=None,
@@ -420,6 +426,7 @@ ParsedChatCompletion(
     ],
     created=1727346158,
     id='chatcmpl-ABfvqhz4uUUWsw8Ohw2Mp9B4sKKV8',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -431,7 +438,8 @@ ParsedChatCompletion(
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=92,
         prompt_tokens_details=None,
@@ -894,6 +902,7 @@ ParsedChatCompletion(
     ],
     created=1727389540,
     id='chatcmpl-ABrDYCa8W1w66eUxKDO8TQF1m6trT',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -905,7 +914,8 @@ ParsedChatCompletion(
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=79,
         prompt_tokens_details=None,
@@ -972,6 +982,7 @@ ParsedChatCompletion(
     ],
     created=1727389532,
     id='chatcmpl-ABrDQWOiw0PK5JOsxl1D9ooeQgznq',
+    metadata=None,
     model='gpt-4o-2024-08-06',
     moderation=None,
     object='chat.completion',
@@ -983,7 +994,8 @@ ParsedChatCompletion(
             accepted_prediction_tokens=None,
             audio_tokens=None,
             reasoning_tokens=0,
-            rejected_prediction_tokens=None
+            rejected_prediction_tokens=None,
+            text_tokens=None
         ),
         prompt_tokens=79,
         prompt_tokens_details=None,

@@ -1,13 +1,27 @@
-# OpenAI Python API library
+# openai-python-optimized
 
-<!-- prettier-ignore -->
-[![PyPI version](https://img.shields.io/pypi/v/openai.svg?label=pypi%20(stable))](https://pypi.org/project/openai/)
+An independently maintained fork of the [OpenAI Python SDK](https://github.com/openai/openai-python)
+by Rasmus Faber, focused on reducing CPU time spent transforming request parameters.
+It keeps the SDK's public API and uses upstream fallback for inputs the optimizer cannot safely handle.
+
+Compiled transform plans combine repeated traversal and copying into fewer passes.
+The fork also fixes an upstream annotation-cache bug that could change union processing
+order based on earlier requests. The optimization modules are separate from generated
+API code, with one transform export change and a small normalization-cache fix to maintain
+when syncing with upstream.
+
+In synthetic benchmarks with 200 input items, warm request transforms were **56–63× faster
+for Responses** and **about 20× faster for Chat Completions** than unmodified SDK 3.14.1.
+These measurements cover local transformation work and exclude network and server latency.
+Workloads using fallback throughout were 13–14% slower because of the cache fix.
+See [the optimization notes](TRANSFORM_OPTIMIZATION.md) for benchmark conditions,
+compatibility details, and the upstream update procedure.
 
 The OpenAI Python library provides convenient access to the OpenAI REST API from any Python 3.10+
 application. The library includes type definitions for all request params and response fields,
 and offers both synchronous and asynchronous clients powered by [HTTPX2](https://httpx2.pydantic.dev/).
 
-It is generated from our [OpenAPI specification](https://github.com/openai/openai-openapi).
+The SDK is generated from OpenAI's [OpenAPI specification](https://github.com/openai/openai-openapi).
 
 ## Documentation
 
@@ -15,16 +29,31 @@ The REST API documentation can be found on [platform.openai.com](https://platfor
 
 ## Installation
 
+From a local checkout of this fork:
+
 ```sh
-# install from PyPI
-pip install openai
+uv venv
+uv pip install .
 ```
+
+The PyPI distribution name is `openai-python-optimized`; the import remains
+`openai`. Existing application code can continue to use `from openai import OpenAI`.
+Once the first PyPI release is published, install it with
+`uv pip install openai-python-optimized`, including optional extras such as
+`uv pip install 'openai-python-optimized[aiohttp]'` or
+`uv pip install 'openai-python-optimized[bedrock]'`.
+
+Use a separate environment or uninstall the upstream `openai` distribution before
+installing this fork: both packages write to the same `openai` import namespace.
+A dependency requiring the distribution `openai` will not automatically accept
+`openai-python-optimized` as a substitute. Installing `openai` from PyPI installs
+the upstream SDK.
 
 ## Usage
 
 The full API of this library can be found in [api.md](api.md).
 
-The primary API for interacting with OpenAI models is the [Responses API](https://platform.openai.com/docs/api-reference/responses). You can generate text from the model with the code below.
+The primary API for interacting with OpenAI models is the [Responses API](https://developers.openai.com/api/reference/resources/responses). You can generate text from the model with the code below.
 
 ```python
 import os
@@ -167,13 +196,72 @@ client = OpenAI(
 )
 ```
 
+#### X.509 workload identity (mutual TLS)
+
+For X.509 workload identity federation, configure the client certificate and
+server trust on an HTTPX2 client, then pass only the identity-provider and
+service-account IDs to the SDK:
+
+```python
+import os
+import ssl
+
+from openai import OpenAI, DefaultHttpx2Client
+from openai.auth import x509_workload_identity
+
+tls_context = ssl.create_default_context(
+    cafile=os.getenv("OPENAI_MTLS_CA_BUNDLE"),
+)
+tls_context.load_cert_chain(
+    certfile=os.environ["OPENAI_MTLS_CERTIFICATE_CHAIN"],
+    keyfile=os.environ["OPENAI_MTLS_PRIVATE_KEY"],
+    password=os.getenv("OPENAI_MTLS_PRIVATE_KEY_PASSWORD"),
+)
+
+client = OpenAI(
+    workload_identity=x509_workload_identity(
+        identity_provider_id=os.environ["OPENAI_IDENTITY_PROVIDER_ID"],
+        service_account_id=os.environ["OPENAI_SERVICE_ACCOUNT_ID"],
+        # refresh_buffer_seconds=120.0,
+    ),
+    http_client=DefaultHttpx2Client(
+        verify=tls_context,
+        follow_redirects=False,
+    ),
+)
+```
+
+X.509 mode defaults to `https://mtls.api.openai.com/v1` when neither `base_url`
+nor `OPENAI_BASE_URL` is set. The same configured HTTP client presents its
+certificate to the fixed mTLS token-exchange endpoint and to the API. Tokens
+are exchanged lazily, cached, and refreshed automatically. Certificate files,
+private keys, passwords, server trust, proxies, and rotation remain application
+and transport concerns.
+
+X.509 API requests require HTTPS and must stay on the configured API origin.
+The effective HTTP Host authority must match that origin.
+Provider API-key and proxy-only headers cannot be sent to the API alongside
+X.509 authentication.
+Token exchanges do not inherit API request hooks, authentication, or cookies.
+Identity settings are captured when the client is constructed; create a new
+client to change the identity. Azure clients do not support X.509 workload
+identity.
+
+For asynchronous requests, use `AsyncOpenAI` with
+`DefaultAsyncHttpx2Client`. See the complete [sync rollout-toggle
+example](examples/x509_workload_identity.py) and [async rollout-toggle
+example](examples/x509_workload_identity_async.py), which select API-key or
+X.509 authentication with the application-owned `OPENAI_AUTH_MODE`
+environment variable. X.509 workload identity currently supports HTTP APIs;
+Realtime and WebSockets are not included.
+
 ### Vision
 
 With an image URL:
 
 ```python
 prompt = "What is in this image?"
-img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/2023_06_08_Raccoon1.jpg/1599px-2023_06_08_Raccoon1.jpg"
+img_url = "https://api.nga.gov/iiif/a2e6da57-3cd1-4235-b20e-95dcaefed6c8/full/!800,800/0/default.jpg"
 
 response = client.responses.create(
     model="gpt-5.5",
@@ -246,11 +334,10 @@ Functionality between the synchronous and asynchronous clients is otherwise iden
 
 By default, the async client uses HTTPX2. For improved concurrency performance, you may also use `aiohttp` as the HTTPX2 transport.
 
-You can enable this by installing `aiohttp`:
+You can enable this by installing the fork's `aiohttp` extra from this checkout:
 
 ```sh
-# install from PyPI
-pip install openai[aiohttp]
+uv pip install '.[aiohttp]'
 ```
 
 Then you can enable it by instantiating the client with `http_client=DefaultAioHttpClient()`:
@@ -287,7 +374,7 @@ HTTPX2 is the default HTTP client. If you configure a custom HTTP client, transp
 
 ## Streaming responses
 
-We provide support for streaming responses using Server Side Events (SSE).
+We provide support for streaming responses using Server-Sent Events (SSE).
 
 ```python
 from openai import OpenAI
@@ -493,7 +580,7 @@ response = client.responses.create(
 
 ## File uploads
 
-Request parameters that correspond to file uploads can be passed as `bytes`, or a [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike) instance or a tuple of `(filename, contents, media type)`.
+Request parameters that correspond to file uploads can be passed as `bytes`, a file-like object, a [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike) instance, or a tuple of `(filename, contents, media type)`.
 
 ```python
 from pathlib import Path
@@ -506,6 +593,20 @@ client.files.create(
     purpose="fine-tune",
 )
 ```
+
+When uploading an in-memory file-like object such as `io.BytesIO`, include a filename when the API needs the file extension to determine its format. Passing a tuple is the most explicit option:
+
+```python
+import io
+
+audio = io.BytesIO(audio_bytes)
+transcription = client.audio.transcriptions.create(
+    model="gpt-4o-transcribe",
+    file=("audio.wav", audio, "audio/wav"),
+)
+```
+
+You can also set a `.name` attribute such as `audio.name = "audio.wav"` on a mutable file-like object before passing it directly. Without a filename, multipart transports may use a generic name such as `upload`, which does not provide an audio extension for format detection.
 
 The async client uses the exact same interface. If you pass a [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike) instance, the file contents will be read asynchronously automatically.
 
@@ -597,6 +698,14 @@ When the API returns a non-success status code (that is, 4xx or 5xx
 response), a subclass of `openai.APIStatusError` is raised, containing `status_code` and `response` properties.
 
 All errors inherit from `openai.APIError`.
+
+When consuming a `Stream` or `AsyncStream`, read timeouts raise `APITimeoutError`
+and other HTTPX request failures raise `APIConnectionError`. Catch these SDK
+exceptions instead of raw HTTPX exceptions; the original exception is available
+as `__cause__`. Stream consumption is not automatically retried, because replaying
+a request could duplicate output already delivered to your application.
+The Assistants event-handler helpers and raw `with_streaming_response` iterators
+retain their existing exception behavior.
 
 ```python
 import openai
@@ -695,6 +804,13 @@ client.with_options(max_retries=5).chat.completions.create(
 )
 ```
 
+`max_retries` must be a non-negative integer. `0` disables retries. Use a large
+integer, such as `1000`, for a larger retry budget. Other values raise an error
+before a request is sent.
+
+Transport failures are retried. Application exceptions raised by custom transports
+or hooks propagate unchanged, including task-executor cancellation signals.
+
 ## Timeouts
 
 By default requests time out after 10 minutes. You can configure this with a `timeout` option,
@@ -743,7 +859,9 @@ You can enable logging by setting the environment variable `OPENAI_LOG` to `info
 $ export OPENAI_LOG=info
 ```
 
-Or to `debug` for more verbose logging.
+Or to `debug` for more verbose logging. Set it to `warning`, `error`, or `critical`
+to show only messages at that level or higher. `OPENAI_LOG` configures the `openai`
+logger; configure HTTP transport loggers separately using Python logging.
 
 ### How to tell whether `None` means `null` or missing
 
@@ -950,9 +1068,11 @@ client = AsyncOpenAI(
 See the complete [sync HTTPX2](examples/mtls_httpx2.py) and
 [async HTTPX2](examples/mtls_httpx2_async.py) examples.
 
-The certificate-bearing HTTP client is transport-wide. Dedicate it to the
-selected mTLS origin; do not reuse it for other services or pass it through
-`with_options()` with a different `base_url`. If redirects are required, add an
+The certificate-bearing HTTP client is transport-wide. For API-key mTLS,
+dedicate it to the selected API origin; X.509 workload identity also uses the
+fixed OpenAI mTLS token-exchange origin. Do not reuse the client for unrelated
+services or pass it through `with_options()` with a different `base_url`.
+If redirects are required for API-key mTLS, add an
 HTTPX2 request hook that rejects requests whose scheme, host, or port differs
 from the configured mTLS origin before enabling `follow_redirects`.
 
@@ -969,9 +1089,9 @@ For certificate rotation, build a new `SSLContext`, HTTP client, and `OpenAI` or
 client after its in-flight requests finish. Do not assume existing TLS
 connections will renegotiate.
 
-This recipe applies to ordinary API-key HTTP traffic. It does not implement
-certificate-only X.509 workload identity, token exchange, or Realtime WebSocket
-mTLS.
+This recipe applies to ordinary API-key HTTP traffic. For certificate-backed
+token exchange, use the X.509 workload identity configuration described above.
+Realtime WebSocket mTLS is not included.
 
 ### Managing HTTP resources
 
@@ -985,6 +1105,25 @@ with OpenAI() as client:
   ...
 
 # HTTP client is now closed
+```
+
+For `AsyncOpenAI`, use `async with` or `await client.close()` before shutting down
+the event loop. Garbage collection cannot reliably await asynchronous cleanup.
+
+```py
+import asyncio
+from openai import AsyncOpenAI
+
+
+async def main() -> None:
+    async with AsyncOpenAI() as client:
+        response = await client.responses.create(
+            model="gpt-5.5", input="Say this is a test"
+        )
+        print(response.output_text)
+
+
+asyncio.run(main())
 ```
 
 ## Microsoft Azure OpenAI
@@ -1033,10 +1172,10 @@ An example of using the client with Microsoft Entra ID (formerly known as Azure 
 
 To use this library with [Amazon Bedrock's OpenAI-compatible API](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html), configure the standard `OpenAI` client with the Bedrock provider.
 
-Install the optional Bedrock dependencies to use the standard AWS credential chain and SigV4 authentication:
+Install the optional Bedrock dependencies from this checkout to use the standard AWS credential chain and SigV4 authentication:
 
 ```sh
-pip install 'openai[bedrock]'
+uv pip install '.[bedrock]'
 ```
 
 ```py
@@ -1073,7 +1212,7 @@ client = OpenAI(
 
 You can also pass `access_key_id` and `secret_access_key`, with an optional `session_token`, or a refreshable `credential_provider` that returns botocore-compatible credentials. Explicit bearer and AWS credential options are mutually exclusive.
 
-Pass `base_url` to `bedrock(...)` or set `AWS_BEDROCK_BASE_URL` to override the derived `https://bedrock-mantle.<region>.api.aws/openai/v1` endpoint.
+Pass `base_url` to `bedrock(...)` or set `AWS_BEDROCK_BASE_URL` to override the derived `https://bedrock-mantle.<region>.api.aws/openai/v1` endpoint. Custom URLs retain Mantle signing by default; pass `endpoint="runtime"` to use Runtime signing.
 
 SigV4 requests require replayable, fully serialized request bodies. Standard JSON requests already meet this requirement, and response streaming is unaffected. Low-level one-shot request streams must be buffered before sending, or sent with bearer authentication and retries disabled.
 
@@ -1117,7 +1256,9 @@ Minimum supported Python version increases are released as minor versions, not p
 
 We take backwards-compatibility seriously and work hard to ensure you can rely on a smooth upgrade experience.
 
-We are keen for your feedback; please open an [issue](https://www.github.com/openai/openai-python/issues) with questions, bugs, or suggestions.
+Before reporting a bug to [upstream](https://github.com/openai/openai-python/issues),
+check whether it also occurs with the upstream release. Changes specific to this fork
+are maintained in [rasmusfaber/openai-python-optimized](https://github.com/rasmusfaber/openai-python-optimized).
 
 ### Determining the installed version
 
@@ -1137,3 +1278,12 @@ Python 3.10 or higher.
 ## Contributing
 
 See [the contributing documentation](./CONTRIBUTING.md).
+
+## License and attribution
+
+The original SDK is copyright OpenAI and distributed under the [Apache License 2.0](LICENSE).
+Rasmus Faber's fork modifications are distributed under the same license. This README
+has been adapted from upstream's documentation for the fork.
+
+The bundled [httpx-aiohttp](src/openai/_vendor/httpx_aiohttp/LICENSE) code and
+[RESPX test utilities](tests/respx2/LICENSE.md) retain their own copyright and BSD license notices.

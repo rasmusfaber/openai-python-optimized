@@ -8,6 +8,7 @@ import httpx2
 import pytest
 
 from openai import OpenAIError
+from openai.auth import x509_workload_identity
 from tests.utils import update_env
 from tests.respx2 import MockRouter
 from openai._types import Omit
@@ -77,6 +78,68 @@ def test_client_copying_override_options(client: Client) -> None:
         api_version="2022-05-01",
     )
     assert copied._custom_query == {"api-version": "2022-05-01"}
+
+
+@pytest.mark.parametrize(
+    "client",
+    [
+        AzureOpenAI(
+            api_version="2024-02-01",
+            api_key="example API key",
+            azure_endpoint="https://example-resource.azure.openai.com",
+            azure_deployment="deployment-client",
+        ),
+        AsyncAzureOpenAI(
+            api_version="2024-02-01",
+            api_key="example API key",
+            azure_endpoint="https://example-resource.azure.openai.com",
+            azure_deployment="deployment-client",
+        ),
+    ],
+)
+@pytest.mark.parametrize("method", ["copy", "with_options"])
+@pytest.mark.parametrize("base_url", [None, "https://replacement.example.test/gateway"])
+async def test_copy_preserves_deployment_routing(
+    client: Client, method: Literal["copy", "with_options"], base_url: str | None
+) -> None:
+    copied = (
+        client.copy(timeout=5, base_url=base_url)
+        if method == "copy"
+        else client.with_options(timeout=5, base_url=base_url)
+    )
+    copied = copied.with_options(max_retries=0)
+    root = base_url or "https://example-resource.azure.openai.com/openai"
+    deployment = "body-model" if base_url else "deployment-client"
+
+    # Non-deployment endpoints use the root; deployment endpoints retain their routing.
+    req = copied._build_request(FinalRequestOptions.construct(method="get", url="/models"))
+    assert req.url == root + "/models?api-version=2024-02-01"
+    req = copied._build_request(
+        FinalRequestOptions.construct(method="post", url="/chat/completions", json_data={"model": "body-model"})
+    )
+    assert req.url == root + f"/deployments/{deployment}/chat/completions?api-version=2024-02-01"
+
+    if isinstance(copied, AsyncAzureOpenAI):
+        url, headers = await copied._configure_realtime("body-model", {})
+    else:
+        url, headers = copied._configure_realtime("body-model", {})
+    assert url == root.replace("https://", "wss://") + (f"/realtime?api-version=2024-02-01&deployment={deployment}")
+    assert headers == {"api-key": "example API key"}
+
+    # Changing a copy's destination must not change the original client.
+    assert client._prepare_url("/models") == "https://example-resource.azure.openai.com/openai/models"
+
+
+@pytest.mark.parametrize("client", [sync_client, async_client])
+@pytest.mark.parametrize("method", ["copy", "with_options"])
+def test_client_copying_rejects_x509_workload_identity(client: Client, method: Literal["copy", "with_options"]) -> None:
+    identity = x509_workload_identity(identity_provider_id="idp_123", service_account_id="svc_acct_123")
+
+    with pytest.raises(OpenAIError, match="X.509 workload identity is not supported by Azure clients"):
+        if method == "copy":
+            client.copy(workload_identity=identity)
+        else:
+            client.with_options(workload_identity=identity)
 
 
 def test_enforce_credentials_false_sync() -> None:

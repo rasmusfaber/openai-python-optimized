@@ -1,10 +1,10 @@
 # File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
-from typing import Union, Optional
-from typing_extensions import Annotated, TypeAlias
+from typing import Dict, Union, Optional
+from typing_extensions import Literal, Annotated, TypeAlias
 
 from ..._utils import PropertyInfo
-from .response_error_event import ResponseErrorEvent
+from ..._models import BaseModel
 from .response_failed_event import ResponseFailedEvent
 from .response_queued_event import ResponseQueuedEvent
 from .response_created_event import ResponseCreatedEvent
@@ -16,7 +16,10 @@ from .response_text_delta_event import ResponseTextDeltaEvent
 from .response_audio_delta_event import ResponseAudioDeltaEvent
 from .response_in_progress_event import ResponseInProgressEvent
 from .response_refusal_done_event import ResponseRefusalDoneEvent
+from .response_steer_failed_event import ResponseSteerFailedEvent
 from .response_refusal_delta_event import ResponseRefusalDeltaEvent
+from .response_steer_pending_event import ResponseSteerPendingEvent
+from .response_steer_accepted_event import ResponseSteerAcceptedEvent
 from .response_mcp_call_failed_event import ResponseMcpCallFailedEvent
 from .response_output_item_done_event import ResponseOutputItemDoneEvent
 from .response_content_part_done_event import ResponseContentPartDoneEvent
@@ -27,12 +30,16 @@ from .response_reasoning_text_done_event import ResponseReasoningTextDoneEvent
 from .response_mcp_call_in_progress_event import ResponseMcpCallInProgressEvent
 from .response_reasoning_text_delta_event import ResponseReasoningTextDeltaEvent
 from .response_audio_transcript_done_event import ResponseAudioTranscriptDoneEvent
+from .response_compaction_compacting_event import ResponseCompactionCompactingEvent
 from .response_mcp_list_tools_failed_event import ResponseMcpListToolsFailedEvent
 from .response_audio_transcript_delta_event import ResponseAudioTranscriptDeltaEvent
 from .response_mcp_call_arguments_done_event import ResponseMcpCallArgumentsDoneEvent
+from .response_shell_call_command_done_event import ResponseShellCallCommandDoneEvent
 from .response_image_gen_call_completed_event import ResponseImageGenCallCompletedEvent
 from .response_mcp_call_arguments_delta_event import ResponseMcpCallArgumentsDeltaEvent
 from .response_mcp_list_tools_completed_event import ResponseMcpListToolsCompletedEvent
+from .response_shell_call_command_added_event import ResponseShellCallCommandAddedEvent
+from .response_shell_call_command_delta_event import ResponseShellCallCommandDeltaEvent
 from .response_image_gen_call_generating_event import ResponseImageGenCallGeneratingEvent
 from .response_web_search_call_completed_event import ResponseWebSearchCallCompletedEvent
 from .response_web_search_call_searching_event import ResponseWebSearchCallSearchingEvent
@@ -52,8 +59,10 @@ from .response_output_text_annotation_added_event import ResponseOutputTextAnnot
 from .response_reasoning_summary_part_added_event import ResponseReasoningSummaryPartAddedEvent
 from .response_reasoning_summary_text_delta_event import ResponseReasoningSummaryTextDeltaEvent
 from .response_function_call_arguments_delta_event import ResponseFunctionCallArgumentsDeltaEvent
+from .response_shell_call_output_content_done_event import ResponseShellCallOutputContentDoneEvent
 from .response_code_interpreter_call_code_done_event import ResponseCodeInterpreterCallCodeDoneEvent
 from .response_code_interpreter_call_completed_event import ResponseCodeInterpreterCallCompletedEvent
+from .response_shell_call_output_content_delta_event import ResponseShellCallOutputContentDeltaEvent
 from .response_code_interpreter_call_code_delta_event import ResponseCodeInterpreterCallCodeDeltaEvent
 from .response_code_interpreter_call_in_progress_event import ResponseCodeInterpreterCallInProgressEvent
 from .response_code_interpreter_call_interpreting_event import ResponseCodeInterpreterCallInterpretingEvent
@@ -69,16 +78,21 @@ __all__ = [
     "ResponseCodeInterpreterCallWsCompleted",
     "ResponseCodeInterpreterCallInWsProgress",
     "ResponseCodeInterpreterCallWsInterpreting",
+    "ResponseCompactionWsCompacting",
     "ResponseWsCompleted",
     "ResponseContentPartWsAdded",
     "ResponseContentPartWsDone",
     "ResponseWsCreated",
-    "ResponseWsError",
     "ResponseFileSearchCallWsCompleted",
     "ResponseFileSearchCallInWsProgress",
     "ResponseFileSearchCallWsSearching",
     "ResponseFunctionCallArgumentsWsDelta",
     "ResponseFunctionCallArgumentsWsDone",
+    "ResponseShellCallCommandWsAdded",
+    "ResponseShellCallCommandWsDelta",
+    "ResponseShellCallCommandWsDone",
+    "ResponseShellCallOutputContentWsDelta",
+    "ResponseShellCallOutputContentWsDone",
     "ResponseInWsProgress",
     "ResponseWsFailed",
     "ResponseWsIncomplete",
@@ -113,6 +127,10 @@ __all__ = [
     "ResponseWsQueued",
     "ResponseCustomToolCallInputWsDelta",
     "ResponseCustomToolCallInputWsDone",
+    "ResponseWsError",
+    "ResponseWsErrorError",
+    "ResponseWsErrorErrorMisalignment",
+    "ResponseWsErrorErrorMisalignmentSteer",
 ]
 
 
@@ -215,6 +233,20 @@ class ResponseCodeInterpreterCallWsInterpreting(ResponseCodeInterpreterCallInter
     """
 
 
+class ResponseCompactionWsCompacting(ResponseCompactionCompactingEvent):
+    """Emitted when new summary content is sampled for a compaction trigger.
+
+    Contains no summary content.
+    """
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 class ResponseWsCompleted(ResponseCompletedEvent):
     """Emitted when the model response is complete."""
 
@@ -250,17 +282,6 @@ class ResponseContentPartWsDone(ResponseContentPartDoneEvent):
 
 class ResponseWsCreated(ResponseCreatedEvent):
     """An event that is emitted when a response is created."""
-
-    stream_id: Optional[str] = None
-    """The WebSocket lane that emitted this event.
-
-    This field is present when the originating `response.create` event supplied a
-    `stream_id`.
-    """
-
-
-class ResponseWsError(ResponseErrorEvent):
-    """Emitted when an error occurs."""
 
     stream_id: Optional[str] = None
     """The WebSocket lane that emitted this event.
@@ -325,6 +346,61 @@ class ResponseFunctionCallArgumentsWsDone(ResponseFunctionCallArgumentsDoneEvent
     """
 
 
+class ResponseShellCallCommandWsAdded(ResponseShellCallCommandAddedEvent):
+    """A streaming event that indicated a shell command was added to a tool call."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class ResponseShellCallCommandWsDelta(ResponseShellCallCommandDeltaEvent):
+    """A streaming event that indicated a shell command was incrementally updated."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class ResponseShellCallCommandWsDone(ResponseShellCallCommandDoneEvent):
+    """A streaming event that indicated a shell command was completed."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class ResponseShellCallOutputContentWsDelta(ResponseShellCallOutputContentDeltaEvent):
+    """A streaming event that indicated shell call output was incrementally added."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class ResponseShellCallOutputContentWsDone(ResponseShellCallOutputContentDoneEvent):
+    """A streaming event that indicated shell call output was completed."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 class ResponseInWsProgress(ResponseInProgressEvent):
     """Emitted when the response is in progress."""
 
@@ -348,7 +424,12 @@ class ResponseWsFailed(ResponseFailedEvent):
 
 
 class ResponseWsIncomplete(ResponseIncompleteEvent):
-    """An event that is emitted when a response finishes as incomplete."""
+    """An event that is emitted when a response finishes as incomplete.
+
+    Over WebSocket, steering can finish a response with
+    `response.incomplete_details.reason` set to `steered`, followed automatically
+    by a successor `response.created` that commits the queued steering input.
+    """
 
     stream_id: Optional[str] = None
     """The WebSocket lane that emitted this event.
@@ -707,6 +788,77 @@ class ResponseCustomToolCallInputWsDone(ResponseCustomToolCallInputDoneEvent):
     """
 
 
+class ResponseWsErrorErrorMisalignmentSteer(BaseModel):
+    """An optional public continuation instruction."""
+
+    message: str
+    """The public continuation instruction."""
+
+
+class ResponseWsErrorErrorMisalignment(BaseModel):
+    detailed_explanation: Optional[str] = None
+    """The public explanation for this block."""
+
+    error_type: Union[
+        str,
+        Literal[
+            "potentially_unintended_data_transfer",
+            "potentially_unintended_data_access",
+            "potentially_unintended_destructive_activity",
+            "other",
+        ],
+        None,
+    ] = None
+    """An optional classification; clients must accept additional values."""
+
+    steer: Optional[ResponseWsErrorErrorMisalignmentSteer] = None
+    """An optional public continuation instruction."""
+
+
+class ResponseWsErrorError(BaseModel):
+    """Details about the error."""
+
+    code: Optional[str] = None
+    """The error code that was emitted, if any."""
+
+    message: str
+    """The human-readable error message that was emitted."""
+
+    param: Optional[str] = None
+    """The parameter name that was associated with the error, if any."""
+
+    type: str
+    """The error type that was emitted."""
+
+    headers: Optional[Dict[str, str]] = None
+    """The response headers that were emitted with the error, if any."""
+
+    misalignment: Optional[ResponseWsErrorErrorMisalignment] = None
+
+
+class ResponseWsError(BaseModel):
+    """Emitted when an error occurs while processing a Responses WebSocket request."""
+
+    error: ResponseWsErrorError
+    """Details about the error."""
+
+    type: Literal["error"]
+    """The type of the event. Always `error`."""
+
+    sequence_number: Optional[int] = None
+    """The sequence number of an error emitted by the response stream."""
+
+    status: Optional[int] = None
+    """The HTTP status code associated with a WebSocket protocol error."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 ResponsesServerEvent: TypeAlias = Annotated[
     Union[
         ResponseAudioWsDelta,
@@ -718,16 +870,21 @@ ResponsesServerEvent: TypeAlias = Annotated[
         ResponseCodeInterpreterCallWsCompleted,
         ResponseCodeInterpreterCallInWsProgress,
         ResponseCodeInterpreterCallWsInterpreting,
+        ResponseCompactionWsCompacting,
         ResponseWsCompleted,
         ResponseContentPartWsAdded,
         ResponseContentPartWsDone,
         ResponseWsCreated,
-        ResponseWsError,
         ResponseFileSearchCallWsCompleted,
         ResponseFileSearchCallInWsProgress,
         ResponseFileSearchCallWsSearching,
         ResponseFunctionCallArgumentsWsDelta,
         ResponseFunctionCallArgumentsWsDone,
+        ResponseShellCallCommandWsAdded,
+        ResponseShellCallCommandWsDelta,
+        ResponseShellCallCommandWsDone,
+        ResponseShellCallOutputContentWsDelta,
+        ResponseShellCallOutputContentWsDone,
         ResponseInWsProgress,
         ResponseWsFailed,
         ResponseWsIncomplete,
@@ -762,6 +919,10 @@ ResponsesServerEvent: TypeAlias = Annotated[
         ResponseWsQueued,
         ResponseCustomToolCallInputWsDelta,
         ResponseCustomToolCallInputWsDone,
+        ResponseWsError,
+        ResponseSteerAcceptedEvent,
+        ResponseSteerPendingEvent,
+        ResponseSteerFailedEvent,
     ],
     PropertyInfo(discriminator="type"),
 ]

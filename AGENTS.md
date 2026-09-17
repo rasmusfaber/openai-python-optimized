@@ -1,3 +1,4 @@
+<!-- Modified by Rasmus Faber: replace inherited organizational automation with fork workflows. -->
 # Repository Guidance
 
 ## Generated SDK
@@ -6,6 +7,41 @@ Most SDK source is generated from the OpenAI API schema. Follow `CONTRIBUTING.md
 changing generated files. Handwritten policy, automation, tests, and examples
 should remain small and should not alter exported SDK APIs unless the change
 explicitly requires it.
+
+## Fork ownership
+
+Rasmus Faber maintains this fork. Keep optimizer changes isolated and preserve
+upstream attribution. Inherited Castiron tools and provenance records remain
+available for reference; this fork does not enforce the upstream custom-code budget.
+
+## Security requirements for coding agents
+
+- Never commit real API or admin keys, bearer tokens, webhook secrets, cloud
+  credentials, X.509 private keys, release credentials, or `.env` files. Read
+  `OPENAI_API_KEY`, `OPENAI_ADMIN_KEY`, `OPENAI_WEBHOOK_SECRET`, and other
+  credentials from the environment; use clearly fake examples and fixtures.
+- Redact credentials, `Authorization` and `api-key` headers, customer data, and
+  sensitive request or response bodies from logs, exceptions, snapshots, and
+  test output. Clearly fake or sanitized fixtures and safe `APIError.body`
+  diagnostics may remain. Preserve existing sensitive-header filtering,
+  including debug logging.
+- Review direct and transitive dependency changes in `pyproject.toml`, optional
+  extras, dependency groups, and `uv.lock`. Check
+  package provenance, build backends, and install scripts before accepting or
+  running them.
+- Pin third-party GitHub Actions to reviewed full commit SHAs. Minimize
+  job-level token permissions and never expose secrets or write-capable tokens
+  to untrusted pull-request code.
+- Preserve separate build and publish jobs, protected release credentials, and
+  PyPI Trusted Publishing. Grant `id-token: write` only to the trusted,
+  upload-only publishing job; do not introduce long-lived PyPI tokens.
+- Obtain fork CODEOWNER review and add focused synchronous and asynchronous
+  security regression tests, as applicable, for changes to authentication,
+  X.509 or webhook verification, HTTP destinations, redirects, proxies, TLS,
+  cloud metadata, file uploads, serialization, dependencies, GitHub Actions,
+  or release workflows.
+- Report suspected vulnerabilities privately as described in `SECURITY.md`;
+  never disclose them in public issues, pull requests, or logs.
 
 ## Python version policy
 
@@ -29,7 +65,7 @@ explicitly requires it.
 5. Add a `## Release note` section to the pull request description naming the
    new minimum and final compatible SDK release. Do not promise security
    backports for the old release.
-6. Obtain SDK CODEOWNER approval.
+6. Obtain fork CODEOWNER approval.
 
 The deterministic Python policy check proves repository surfaces agree. It
 does not decide whether an EOL grace period or floor increase is appropriate.
@@ -39,33 +75,47 @@ does not decide whether an EOL grace period or floor increase is appropriate.
 - `.github/workflows/ci.yml`
   - On pull requests and branch pushes: lint, build, metadata validation, and
     tests on the minimum and current stable Python releases.
-  - Nightly and manually: smoke-tests every supported Python release and the
-    allowed-failure prerelease.
-- `.github/workflows/python-version-review.yml`
-  - Monthly on the default branch: snapshots official CPython lifecycle data
-    plus the public PyPI Python-minor distribution and asks Codex for a policy
-    review.
-  - Runs a pinned Codex runtime as an unprivileged user with no command network
-    access and read-only repository permissions.
-  - Codex cannot edit the repository or call GitHub. A separate job with no
-    OpenAI credential opens or refreshes one issue only when action is needed.
-  - Never changes the Python floor or merges code automatically.
+  - Weekly and manually: transform tests on every supported Python release and
+    the allowed-failure prerelease, with both Pydantic versions.
+- `.github/workflows/publish-pypi.yml`
+  - Published releases from main rerun CI and publish its checked distributions
+    to `openai-python-optimized` through the `pypi` environment using OIDC.
+  - Only the upload job has publishing permission. See `.github/README.md`.
+- `.github/dependabot.yml`: weekly Python, Node, and GitHub Actions updates.
 
 ## Validation
 
 Before publishing a Python-version change, run:
 
 ```sh
-rye lock --all-features
+uv lock
 uv lock --check
-rye build
-rye run python scripts/check-python-version-policy.py
-rye run python scripts/utils/validate-python-version-wheel.py
+./scripts/build
+uv run --locked --all-extras python scripts/check-python-version-policy.py
+uv run --locked --all-extras python scripts/utils/validate-python-version-wheel.py
 python3.9 scripts/utils/validate-python-version-wheel.py --check-python-39
-rye run python scripts/utils/validate-bedrock-wheel.py
-rye run python scripts/utils/validate-httpx2-wheel.py
+uv run --locked --all-extras python scripts/utils/validate-bedrock-wheel.py
+uv run --locked --all-extras python scripts/utils/validate-httpx2-wheel.py
 ./scripts/lint
 ./scripts/test
 ```
 
 Also run the scheduled compatibility matrix before release.
+
+## Large-payload compatibility
+
+Treat large payloads as a normal API contract, not evidence of malformed or
+hostile input. Responses, Chat Completions, and other APIs can legitimately
+return large `application/json` bodies and streaming events. Do not introduce
+arbitrary fixed limits on bodies, events, or lines as a security or efficiency
+fix. Prefer incremental processing, amortized-linear buffering, timely cleanup,
+and caller cancellation. Any new rejection limit needs an explicit,
+owner-approved API contract and a review of existing supported payloads and
+transports.
+
+Protect this behavior with focused, deterministic public-entrypoint tests using
+large synthetic payloads generated in memory, not committed captures or live
+image generation. Their high memory use is intentional: do not shrink the
+payloads or raise client limits to make the tests pass. Keep coverage to the main
+JSON and streaming categories, and run large cases sequentially to keep peak
+memory reasonable. The fixture size is a regression probe, not a new API maximum.

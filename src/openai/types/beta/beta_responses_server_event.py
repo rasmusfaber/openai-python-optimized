@@ -1,10 +1,10 @@
 # File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
-from typing import Union, Optional
-from typing_extensions import Annotated, TypeAlias
+from typing import Dict, Union, Optional
+from typing_extensions import Literal, Annotated, TypeAlias
 
 from ..._utils import PropertyInfo
-from .beta_response_error_event import BetaResponseErrorEvent
+from ..._models import BaseModel
 from .beta_response_failed_event import BetaResponseFailedEvent
 from .beta_response_queued_event import BetaResponseQueuedEvent
 from .beta_response_created_event import BetaResponseCreatedEvent
@@ -16,9 +16,12 @@ from .beta_response_text_delta_event import BetaResponseTextDeltaEvent
 from .beta_response_audio_delta_event import BetaResponseAudioDeltaEvent
 from .beta_response_in_progress_event import BetaResponseInProgressEvent
 from .beta_response_refusal_done_event import BetaResponseRefusalDoneEvent
+from .beta_response_steer_failed_event import BetaResponseSteerFailedEvent
 from .beta_response_inject_failed_event import BetaResponseInjectFailedEvent
 from .beta_response_refusal_delta_event import BetaResponseRefusalDeltaEvent
+from .beta_response_steer_pending_event import BetaResponseSteerPendingEvent
 from .beta_response_inject_created_event import BetaResponseInjectCreatedEvent
+from .beta_response_steer_accepted_event import BetaResponseSteerAcceptedEvent
 from .beta_response_mcp_call_failed_event import BetaResponseMcpCallFailedEvent
 from .beta_response_output_item_done_event import BetaResponseOutputItemDoneEvent
 from .beta_response_content_part_done_event import BetaResponseContentPartDoneEvent
@@ -29,12 +32,16 @@ from .beta_response_reasoning_text_done_event import BetaResponseReasoningTextDo
 from .beta_response_mcp_call_in_progress_event import BetaResponseMcpCallInProgressEvent
 from .beta_response_reasoning_text_delta_event import BetaResponseReasoningTextDeltaEvent
 from .beta_response_audio_transcript_done_event import BetaResponseAudioTranscriptDoneEvent
+from .beta_response_compaction_compacting_event import BetaResponseCompactionCompactingEvent
 from .beta_response_mcp_list_tools_failed_event import BetaResponseMcpListToolsFailedEvent
 from .beta_response_audio_transcript_delta_event import BetaResponseAudioTranscriptDeltaEvent
 from .beta_response_mcp_call_arguments_done_event import BetaResponseMcpCallArgumentsDoneEvent
+from .beta_response_shell_call_command_done_event import BetaResponseShellCallCommandDoneEvent
 from .beta_response_image_gen_call_completed_event import BetaResponseImageGenCallCompletedEvent
 from .beta_response_mcp_call_arguments_delta_event import BetaResponseMcpCallArgumentsDeltaEvent
 from .beta_response_mcp_list_tools_completed_event import BetaResponseMcpListToolsCompletedEvent
+from .beta_response_shell_call_command_added_event import BetaResponseShellCallCommandAddedEvent
+from .beta_response_shell_call_command_delta_event import BetaResponseShellCallCommandDeltaEvent
 from .beta_response_image_gen_call_generating_event import BetaResponseImageGenCallGeneratingEvent
 from .beta_response_web_search_call_completed_event import BetaResponseWebSearchCallCompletedEvent
 from .beta_response_web_search_call_searching_event import BetaResponseWebSearchCallSearchingEvent
@@ -54,8 +61,10 @@ from .beta_response_output_text_annotation_added_event import BetaResponseOutput
 from .beta_response_reasoning_summary_part_added_event import BetaResponseReasoningSummaryPartAddedEvent
 from .beta_response_reasoning_summary_text_delta_event import BetaResponseReasoningSummaryTextDeltaEvent
 from .beta_response_function_call_arguments_delta_event import BetaResponseFunctionCallArgumentsDeltaEvent
+from .beta_response_shell_call_output_content_done_event import BetaResponseShellCallOutputContentDoneEvent
 from .beta_response_code_interpreter_call_code_done_event import BetaResponseCodeInterpreterCallCodeDoneEvent
 from .beta_response_code_interpreter_call_completed_event import BetaResponseCodeInterpreterCallCompletedEvent
+from .beta_response_shell_call_output_content_delta_event import BetaResponseShellCallOutputContentDeltaEvent
 from .beta_response_code_interpreter_call_code_delta_event import BetaResponseCodeInterpreterCallCodeDeltaEvent
 from .beta_response_code_interpreter_call_in_progress_event import BetaResponseCodeInterpreterCallInProgressEvent
 from .beta_response_code_interpreter_call_interpreting_event import BetaResponseCodeInterpreterCallInterpretingEvent
@@ -71,16 +80,21 @@ __all__ = [
     "BetaResponseCodeInterpreterCallWsCompleted",
     "BetaResponseCodeInterpreterCallInWsProgress",
     "BetaResponseCodeInterpreterCallWsInterpreting",
+    "BetaResponseCompactionWsCompacting",
     "BetaResponseWsCompleted",
     "BetaResponseContentPartWsAdded",
     "BetaResponseContentPartWsDone",
     "BetaResponseWsCreated",
-    "BetaResponseWsError",
     "BetaResponseFileSearchCallWsCompleted",
     "BetaResponseFileSearchCallInWsProgress",
     "BetaResponseFileSearchCallWsSearching",
     "BetaResponseFunctionCallArgumentsWsDelta",
     "BetaResponseFunctionCallArgumentsWsDone",
+    "BetaResponseShellCallCommandWsAdded",
+    "BetaResponseShellCallCommandWsDelta",
+    "BetaResponseShellCallCommandWsDone",
+    "BetaResponseShellCallOutputContentWsDelta",
+    "BetaResponseShellCallOutputContentWsDone",
     "BetaResponseInWsProgress",
     "BetaResponseWsFailed",
     "BetaResponseWsIncomplete",
@@ -115,6 +129,11 @@ __all__ = [
     "BetaResponseWsQueued",
     "BetaResponseCustomToolCallInputWsDelta",
     "BetaResponseCustomToolCallInputWsDone",
+    "BetaResponseWsError",
+    "BetaResponseWsErrorError",
+    "BetaResponseWsErrorErrorMisalignment",
+    "BetaResponseWsErrorErrorMisalignmentSteer",
+    "BetaResponseWsErrorAgent",
 ]
 
 
@@ -217,6 +236,20 @@ class BetaResponseCodeInterpreterCallWsInterpreting(BetaResponseCodeInterpreterC
     """
 
 
+class BetaResponseCompactionWsCompacting(BetaResponseCompactionCompactingEvent):
+    """Emitted when new summary content is sampled for a compaction trigger.
+
+    Contains no summary content.
+    """
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 class BetaResponseWsCompleted(BetaResponseCompletedEvent):
     """Emitted when the model response is complete."""
 
@@ -252,17 +285,6 @@ class BetaResponseContentPartWsDone(BetaResponseContentPartDoneEvent):
 
 class BetaResponseWsCreated(BetaResponseCreatedEvent):
     """An event that is emitted when a response is created."""
-
-    stream_id: Optional[str] = None
-    """The WebSocket lane that emitted this event.
-
-    This field is present when the originating `response.create` event supplied a
-    `stream_id`.
-    """
-
-
-class BetaResponseWsError(BetaResponseErrorEvent):
-    """Emitted when an error occurs."""
 
     stream_id: Optional[str] = None
     """The WebSocket lane that emitted this event.
@@ -327,6 +349,61 @@ class BetaResponseFunctionCallArgumentsWsDone(BetaResponseFunctionCallArgumentsD
     """
 
 
+class BetaResponseShellCallCommandWsAdded(BetaResponseShellCallCommandAddedEvent):
+    """A streaming event that indicated a shell command was added to a tool call."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class BetaResponseShellCallCommandWsDelta(BetaResponseShellCallCommandDeltaEvent):
+    """A streaming event that indicated a shell command was incrementally updated."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class BetaResponseShellCallCommandWsDone(BetaResponseShellCallCommandDoneEvent):
+    """A streaming event that indicated a shell command was completed."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class BetaResponseShellCallOutputContentWsDelta(BetaResponseShellCallOutputContentDeltaEvent):
+    """A streaming event that indicated shell call output was incrementally added."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
+class BetaResponseShellCallOutputContentWsDone(BetaResponseShellCallOutputContentDoneEvent):
+    """A streaming event that indicated shell call output was completed."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 class BetaResponseInWsProgress(BetaResponseInProgressEvent):
     """Emitted when the response is in progress."""
 
@@ -350,7 +427,12 @@ class BetaResponseWsFailed(BetaResponseFailedEvent):
 
 
 class BetaResponseWsIncomplete(BetaResponseIncompleteEvent):
-    """An event that is emitted when a response finishes as incomplete."""
+    """An event that is emitted when a response finishes as incomplete.
+
+    Over WebSocket, steering can finish a response with
+    `response.incomplete_details.reason` set to `steered`, followed automatically
+    by a successor `response.created` that commits the queued steering input.
+    """
 
     stream_id: Optional[str] = None
     """The WebSocket lane that emitted this event.
@@ -709,6 +791,87 @@ class BetaResponseCustomToolCallInputWsDone(BetaResponseCustomToolCallInputDoneE
     """
 
 
+class BetaResponseWsErrorErrorMisalignmentSteer(BaseModel):
+    """An optional public continuation instruction."""
+
+    message: str
+    """The public continuation instruction."""
+
+
+class BetaResponseWsErrorErrorMisalignment(BaseModel):
+    detailed_explanation: Optional[str] = None
+    """The public explanation for this block."""
+
+    error_type: Union[
+        str,
+        Literal[
+            "potentially_unintended_data_transfer",
+            "potentially_unintended_data_access",
+            "potentially_unintended_destructive_activity",
+            "other",
+        ],
+        None,
+    ] = None
+    """An optional classification; clients must accept additional values."""
+
+    steer: Optional[BetaResponseWsErrorErrorMisalignmentSteer] = None
+    """An optional public continuation instruction."""
+
+
+class BetaResponseWsErrorError(BaseModel):
+    """Details about the error."""
+
+    code: Optional[str] = None
+    """The error code that was emitted, if any."""
+
+    message: str
+    """The human-readable error message that was emitted."""
+
+    param: Optional[str] = None
+    """The parameter name that was associated with the error, if any."""
+
+    type: str
+    """The error type that was emitted."""
+
+    headers: Optional[Dict[str, str]] = None
+    """The response headers that were emitted with the error, if any."""
+
+    misalignment: Optional[BetaResponseWsErrorErrorMisalignment] = None
+
+
+class BetaResponseWsErrorAgent(BaseModel):
+    """The agent that owns this multi-agent streaming event."""
+
+    agent_name: str
+    """The canonical name of the agent that produced this item."""
+
+
+class BetaResponseWsError(BaseModel):
+    """Emitted when an error occurs while processing a Responses WebSocket request."""
+
+    error: BetaResponseWsErrorError
+    """Details about the error."""
+
+    type: Literal["error"]
+    """The type of the event. Always `error`."""
+
+    agent: Optional[BetaResponseWsErrorAgent] = None
+    """The agent that owns this multi-agent streaming event."""
+
+    sequence_number: Optional[int] = None
+    """The sequence number of an error emitted by the response stream."""
+
+    status: Optional[int] = None
+    """The HTTP status code associated with a WebSocket protocol error."""
+
+    stream_id: Optional[str] = None
+    """The WebSocket lane that emitted this event.
+
+    This field is present when the originating `response.create` event supplied a
+    `stream_id`.
+    """
+
+
 BetaResponsesServerEvent: TypeAlias = Annotated[
     Union[
         BetaResponseAudioWsDelta,
@@ -720,16 +883,21 @@ BetaResponsesServerEvent: TypeAlias = Annotated[
         BetaResponseCodeInterpreterCallWsCompleted,
         BetaResponseCodeInterpreterCallInWsProgress,
         BetaResponseCodeInterpreterCallWsInterpreting,
+        BetaResponseCompactionWsCompacting,
         BetaResponseWsCompleted,
         BetaResponseContentPartWsAdded,
         BetaResponseContentPartWsDone,
         BetaResponseWsCreated,
-        BetaResponseWsError,
         BetaResponseFileSearchCallWsCompleted,
         BetaResponseFileSearchCallInWsProgress,
         BetaResponseFileSearchCallWsSearching,
         BetaResponseFunctionCallArgumentsWsDelta,
         BetaResponseFunctionCallArgumentsWsDone,
+        BetaResponseShellCallCommandWsAdded,
+        BetaResponseShellCallCommandWsDelta,
+        BetaResponseShellCallCommandWsDone,
+        BetaResponseShellCallOutputContentWsDelta,
+        BetaResponseShellCallOutputContentWsDone,
         BetaResponseInWsProgress,
         BetaResponseWsFailed,
         BetaResponseWsIncomplete,
@@ -764,6 +932,10 @@ BetaResponsesServerEvent: TypeAlias = Annotated[
         BetaResponseWsQueued,
         BetaResponseCustomToolCallInputWsDelta,
         BetaResponseCustomToolCallInputWsDone,
+        BetaResponseWsError,
+        BetaResponseSteerAcceptedEvent,
+        BetaResponseSteerPendingEvent,
+        BetaResponseSteerFailedEvent,
         BetaResponseInjectCreatedEvent,
         BetaResponseInjectFailedEvent,
     ],
